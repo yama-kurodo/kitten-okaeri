@@ -1,4 +1,4 @@
-const CACHE = "okaeri-v1";
+const CACHE = "okaeri-v2";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -17,6 +17,10 @@ self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   const same = url.origin === location.origin;
   if (!same && !/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) return;
+  if (e.request.mode === "navigate") {
+    e.respondWith(fetch(e.request).catch(() => caches.match("index.html")));
+    return;
+  }
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(e.request, { ignoreSearch: same });
     const net = fetch(e.request).then(r => {
