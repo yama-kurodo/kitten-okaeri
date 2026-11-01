@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4d6b2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="お迎え帳">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<title>子猫お迎え帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
+<style>
+/* 畳の色を地に、1列のチェック帳。上に進み具合と移動ボタンを固定する */
+:root {
+  --bg: #eff1e2;
+  --surface: #fbfbf4;
+  --line: #d3d7bf;
+  --fg: #2a2e22;
+  --muted: #62684f;
+  --accent: #4d6b2e;
+  --accent-soft: #dfe7c8;
+  --must: #a83a55;
+  --must-soft: #f6dfe4;
+  --away: #23607f;
+  --away-soft: #d9e9f1;
+  --nice: #62684f;
+  --nice-soft: #e6e8d8;
+  --alert-bg: #f9e2dc;
+  --alert-fg: #8a2b17;
+  --display: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", "Meiryo", sans-serif;
+  --body: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1f17; --surface: #262a1f; --line: #3d4331; --fg: #ecefdf; --muted: #b0b69c;
+    --accent: #a9c97c; --accent-soft: #38452a;
+    --must: #f0a1b3; --must-soft: #4d2a33;
+    --away: #93cbe6; --away-soft: #223f4d;
+    --nice: #b0b69c; --nice-soft: #363a2c;
+    --alert-bg: #47271e; --alert-fg: #f6b7a5;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1f17; --surface: #262a1f; --line: #3d4331; --fg: #ecefdf; --muted: #b0b69c;
+  --accent: #a9c97c; --accent-soft: #38452a;
+  --must: #f0a1b3; --must-soft: #4d2a33;
+  --away: #93cbe6; --away-soft: #223f4d;
+  --nice: #b0b69c; --nice-soft: #363a2c;
+  --alert-bg: #47271e; --alert-fg: #f6b7a5;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; }
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 112px); }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.7; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header.top { padding-block: 24px 16px; }
+h1 { font-family: var(--display); font-size: 30px; font-weight: 700; line-height: 1.3; margin: 0; text-wrap: balance; }
+.lead { margin: 6px 0 0; color: var(--muted); }
+
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-block: 1px solid var(--line); }
+.bar-in { display: grid; gap: 8px; padding-block: 10px; }
+.prog-row { display: flex; align-items: center; gap: 12px; }
+.prog-num { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.prog { flex: 1; min-width: 0; height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.nav::-webkit-scrollbar { display: none; }
+.nav a { flex: none; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); font-size: 13px; font-weight: 500; text-decoration: none; }
+
+main { display: grid; gap: 36px; padding-block: 24px 48px; }
+section { min-width: 0; }
+h2 { font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.4; margin: 0 0 4px; text-wrap: balance; }
+h3 { font-size: 15px; font-weight: 700; margin: 20px 0 6px; color: var(--accent); display: flex; justify-content: space-between; gap: 12px; }
+h3 small { font-weight: 500; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.note { margin: 0 0 10px; color: var(--muted); }
+
+.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.list li + li { border-top: 1px solid var(--line); }
+.item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 11px 12px; cursor: pointer; }
+.item input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.item-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.item-name { font-weight: 700; }
+.tag { font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 4px; line-height: 1.7; }
+.tag.must { background: var(--must-soft); color: var(--must); }
+.tag.away { background: var(--away-soft); color: var(--away); }
+.tag.nice { background: var(--nice-soft); color: var(--nice); }
+.price { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.item-detail { display: block; font-size: 14px; color: var(--muted); }
+li.done .item-name { color: var(--muted); text-decoration: line-through; }
+li.done .item-detail { opacity: .7; }
+body.only-open li.done { display: none; }
+
+.point { display: grid; gap: 8px; margin: 12px 0 0; padding: 14px; background: var(--accent-soft); border-radius: 8px; }
+.point p { margin: 0; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.steps li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
+.steps b { color: var(--accent); }
+.steps span { min-width: 0; }
+
+.tl { margin: 12px 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.tl-axis, .tl-meals { position: relative; height: 22px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tl-axis span, .tl-meals span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.tl-axis span:first-child { transform: none; }
+.tl-axis span:last-child { transform: translateX(-100%); }
+.tl-meals span { color: var(--must); font-weight: 700; }
+.tl-bar { position: relative; height: 30px; display: flex; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; }
+.tl-bar div { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.tl-home { background: var(--accent-soft); }
+.tl-away { background: var(--away-soft); color: var(--away); }
+.tl-dots { position: relative; height: 12px; }
+.tl-dots i { position: absolute; top: 3px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: var(--must); }
+.tl-key { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; }
+.day { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.day td { padding: 8px 12px; vertical-align: top; }
+.day tr + tr td { border-top: 1px solid var(--line); }
+.day td:first-child { width: 96px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.plain { margin: 0; padding-left: 1.3em; }
+.alert { padding: 14px; border-radius: 8px; background: var(--alert-bg); color: var(--alert-fg); }
+.alert h2 { margin-bottom: 8px; }
+.alert p { margin: 8px 0 0; }
+.save { margin: 0; font-size: 13px; color: var(--muted); }
+a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 460px) {
+  .steps li { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .price { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .prog i { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <h1>子猫お迎え帳</h1>
+    <p class="lead">生後2〜3か月の子猫を迎える準備。平日9〜18時は留守番の家向け</p>
+  </header>
+</div>
+
+<div class="bar">
+  <div class="wrap bar-in">
+    <div class="prog-row">
+      <span class="prog-num" id="progNum">0 / 0</span>
+      <div class="prog" aria-hidden="true"><i id="progFill"></i></div>
+      <label class="toggle"><input type="checkbox" id="onlyOpen">残りだけ表示</label>
+    </div>
+    <nav class="nav" aria-label="項目へ移動">
+      <a href="#rusuban">留守番</a>
+      <a href="#kaimono">買うもの</a>
+      <a href="#heya">部屋</a>
+      <a href="#mae">迎える前</a>
+      <a href="#week">最初の1週間</a>
+      <a href="#kiken">危険チェック</a>
+      <a href="#byoin">すぐ病院へ</a>
+    </nav>
+  </div>
+</div>
+
+<div class="wrap">
+<main>
+  <section id="rusuban">
+    <h2>9〜18時の留守番プラン</h2>
+    <p class="note">普段はケージで留守番させ、昼ごはんは自動給餌器に任せます。エアコンは1日中つけたままにして、カメラで様子を見ます。</p>
+
+    <div class="tl" role="img" aria-label="1日の予定。朝7時30分、昼13時、夕方18時30分、夜22時に食事。9時から18時は留守番。">
+      <div class="tl-axis"><span style="left:0">6時</span><span style="left:16.67%">9時</span><span style="left:66.67%">18時</span><span style="left:100%">24時</span></div>
+      <div class="tl-bar">
+        <div class="tl-home" style="width:16.67%">在宅</div>
+        <div class="tl-away" style="width:50%">留守番</div>
+        <div class="tl-home" style="width:33.33%">在宅</div>
+      </div>
+      <div class="tl-dots"><i style="left:8.33%"></i><i style="left:38.89%"></i><i style="left:69.44%"></i><i style="left:88.89%"></i></div>
+      <div class="tl-meals"><span style="left:8.33%">7:30</span><span style="left:38.89%">13:00</span><span style="left:69.44%">18:30</span><span style="left:88.89%">22:00</span></div>
+      <p class="tl-key">赤い点がごはんの時間です。13:00 は自動給餌器が出します。</p>
+    </div>
+
+    <div class="day"><table>
+      <tr><td>7:00</td><td>トイレ掃除、15分遊ぶ</td></tr>
+      <tr><td>7:30</td><td>朝ごはん</td></tr>
+      <tr><td>8:45</td><td>ケージに入れて、下の「出かける前の確認」をする</td></tr>
+      <tr><td>9:00〜18:00</td><td>留守番。昼休みにカメラで食べたか確認する</td></tr>
+      <tr><td>18:00</td><td>ケージから出す。給餌器の減り、トイレ、水を確認する</td></tr>
+      <tr><td>18:30</td><td>夕ごはん</td></tr>
+      <tr><td>19:30</td><td>20〜30分しっかり遊ぶ。日中の分はここで取り返す</td></tr>
+      <tr><td>22:00</td><td>夜ごはん、トイレを確認して就寝</td></tr>
+    </table></div>
+
+    <h3>留守番の慣らし方</h3>
+    <ol class="steps">
+      <li><b>1〜3日目</b><span>連休か有休で誰かが家にいる。1〜2時間の外出から試す</span></li>
+      <li><b>4〜14日目</b><span>平日の留守番を開始。できれば家族の誰かが昼に帰るか、知人やペットシッターに頼む</span></li>
+      <li><b>生後4〜5か月まで</b><span>ケージで留守番。朝晩は部屋で自由に過ごす</span></li>
+      <li><b>生後5〜6か月以降</b><span>食事が1日3回で足り、部屋の危険を減らせたら、部屋で留守番に移る</span></li>
+    </ol>
+
+    <div class="point">
+      <p><b>迎える時期は生後3か月寄りがおすすめです。</b>まだふやかしたごはんを食べている子は、昼の留守番がしにくいです。知人に相談して、ドライフードを食べられるようになってから迎えられると安心です。</p>
+      <p><b>昼はドライフードだけにします。</b>ウェットやふやかしたごはんは、給餌器の中で傷みます。</p>
+      <p><b>病院は18時以降も開いている所を選びます。</b>仕事帰りに連れて行けるかで、もしものときの動きやすさが変わります。</p>
+    </div>
+
+    <h3>出かける前の確認（毎日）</h3>
+    <ul class="plain">
+      <li>給餌器にドライフードが入っていて、タイマーが合っている</li>
+      <li>水が2か所入っている</li>
+      <li>トイレがきれいで、固まりを取ってある</li>
+      <li>エアコンがついている。冬は23〜25℃が目安</li>
+      <li>ケージの扉を閉めた。じゃらし、ひもをしまった</li>
+      <li>ヒーターのコードがケージの外を通っている</li>
+      <li>カメラがスマホで見られる</li>
+    </ul>
+
+    <h3 id="h-rusu"></h3>
+    <ul class="list" id="l-away"></ul>
+  </section>
+
+  <section id="kaimono">
+    <h2>買うもの</h2>
+    <p class="note">金額はだいたいの目安です。買う前に店の価格を確認してください。合計の目安は、暮らしの用品が3〜5万円、留守番用が1.5〜3万円、部屋の対策が1〜2万円、最初の医療費が1〜2万円です。</p>
+    <h3 id="h-goods"></h3>
+    <ul class="list" id="l-goods"></ul>
+  </section>
+
+  <section id="heya">
+    <h2>部屋の準備</h2>
+    <p class="note">猫の部屋は1Fの畳部屋にします。エアコンがない2Fは、留守番には使いません。</p>
+    <h3 id="h-room"></h3>
+    <ul class="list" id="l-room"></ul>
+  </section>
+
+  <section id="mae">
+    <h2>迎える前にやること</h2>
+    <h3 id="h-friend"></h3>
+    <ul class="list" id="l-friend"></ul>
+    <h3 id="h-vet"></h3>
+    <ul class="list" id="l-vet"></ul>
+    <h3 id="h-family"></h3>
+    <ul class="list" id="l-family"></ul>
+  </section>
+
+  <section id="week">
+    <h2>迎えた日と最初の1週間</h2>
+    <h3 id="h-first"></h3>
+    <ul class="list" id="l-first"></ul>
+  </section>
+
+  <section id="kiken">
+    <h2>危険チェック</h2>
+    <p class="note">迎える前に、1Fを中心に家族で見て回ります。</p>
+    <h3 id="h-danger"></h3>
+    <ul class="list" id="l-danger"></ul>
+  </section>
+
+  <section id="byoin" class="alert">
+    <h2>すぐ病院へ連絡</h2>
+    <ul class="plain">
+      <li>半日以上食べない</li>
+      <li>ぐったりしている、体が冷たい</li>
+      <li>嘔吐や下痢が続く</li>
+      <li>おしっこが丸1日出ない</li>
+    </ul>
+    <p>子猫は悪化が早いので、様子を見ずに電話します。カメラで異変を見つけたら、決めておいた家族が帰ります。</p>
+  </section>
+
+  <section id="install">
+    <h2>ホーム画面に追加</h2>
+    <p class="note">追加すると、アプリのようにアイコンから開けます。一度開いたあとは、電波がない所でも使えます。</p>
+    <ol class="plain">
+      <li>LINEから開いたときは、右下のメニューからSafariで開く</li>
+      <li>Safariの共有ボタンをタップ</li>
+      <li>「ホーム画面に追加」をタップ</li>
+    </ol>
+  </section>
+
+  <p class="save">チェックはこの端末だけに保存します。Safariとホーム画面のアイコンでは保存先が別になるので、追加したあとはアイコンから開いてください。</p>
+</main>
+</div>
+
+<script>
+const LISTS = {
+  away: { head: "留守番の道具", items: [
+    ["a1", "自動給餌器", "must", "8,000〜15,000円", "タイマー式で、コンセントと電池の両方が使えるもの。子猫の小粒が詰まらない機種を選び、猫がフタを開けられないロック付きに。必ず家にいる日に試運転します。"],
+    ["a2", "見守りカメラ", "must", "3,000〜6,000円", "Wi-Fi接続、暗視、スマホで話しかけられるもの。ケージ全体が映る位置に置き、コードは猫の届かない所へ通します。"],
+    ["a3", "固定式の水入れ・給水ボトル", "must", "1,000〜2,000円", "ケージの金網に固定できるもの。ボトルは飲めるか先に確認し、重い皿の水と合わせて2か所にします。"],
+    ["a4", "温湿度計", "must", "1,000〜2,000円", "数字が大きく、カメラ越しに読めるもの。ケージのすぐ近くに置きます。"],
+    ["a5", "スマートリモコン", "away", "5,000〜8,000円", "外からエアコンを操作でき、室温も見られるもの。温度センサー付きなら温湿度計の代わりにもなります。"],
+    ["a6", "ひとり遊びのおもちゃ", "away", "1,000〜2,000円", "ボールが筒の中を回るトラックボール型など。飲み込めない大きさで、ひものないものだけをケージに入れます。"],
+    ["a7", "ペットヒーター（冬用）", "nice", "3,000〜6,000円", "室温を保てても足元が冷えるとき用。コードがかじれない構造で、ケージの半分だけに敷いて逃げ場を作ります。"],
+  ]},
+  goods: { head: "暮らしの用品", items: [
+    ["g1", "ケージ（2段以上）", "must", "15,000〜25,000円", "幅80〜90×奥行55〜60cmが目安。トイレとごはんを離せる広さで、棚板の高さを変えられるもの。9時間過ごす場所なので広さを優先します。"],
+    ["g2", "キャリー", "must", "3,000〜6,000円", "プラスチック製で、上と前が開くもの。幅45cm前後なら大人になっても使え、診察もしやすいです。"],
+    ["g3", "トイレ", "must", "1,500〜3,000円", "入口が低い浅型。ケージの1段目に入るか、寸法を測ってから買います。"],
+    ["g4", "猫砂", "must", "1,000円前後", "まずは知人宅と同じ種類に。変えるときは少しずつ混ぜます。"],
+    ["g5", "子猫用ドライフード", "must", "1,000〜2,500円", "「総合栄養食」かつ子猫用の表示があるもの。今食べている銘柄から始め、変えるなら1週間かけて混ぜます。"],
+    ["g6", "子猫用ウェットフード", "nice", "1袋150〜250円", "朝晩の食事用。今食べていれば同じものを用意します。"],
+    ["g7", "フード皿 2枚", "must", "各500〜1,500円", "陶器かステンレスで、重くて浅いもの。ひっくり返しにくいです。"],
+    ["g8", "水入れ 2個", "must", "各500〜1,500円", "ケージ内と部屋に1つずつ。"],
+    ["g9", "爪とぎ 2個以上", "must", "各500〜1,500円", "ケージ内に小さめ1つ、部屋のふすまの近くに1つ。畳やふすまの代わりになります。"],
+    ["g10", "寝床・毛布", "must", "1,000〜3,000円", "洗えるもの。替えも含めて2枚。爪が引っかかる粗い編み目は避けます。"],
+    ["g11", "爪切り", "must", "1,000円前後", "子猫にはハサミ型が扱いやすいです。"],
+    ["g12", "やわらかいブラシ", "nice", "1,000円前後", "小さいうちから触られることに慣らす目的で使います。"],
+    ["g13", "じゃらし", "must", "500円前後", "人と遊ぶとき専用。誤飲が怖いので、留守中は必ずしまいます。"],
+    ["g14", "ペットシーツ", "must", "1,000円前後", "ケージの下やキャリーに敷きます。"],
+    ["g15", "おしっこ用の消臭剤", "must", "1,000円前後", "酵素タイプ。畳で失敗したときはすぐ使います。"],
+    ["g16", "キッチンスケール", "nice", "1,000〜2,000円", "1g単位のもの。週1回の体重測定に。家にあれば不要です。"],
+  ]},
+  room: { head: "1Fの畳部屋", items: [
+    ["r1", "ケージの場所を決める", "must", "", "エアコンの風が直接当たらず、窓から離れた壁際。直射日光の入らない所にします。"],
+    ["r2", "ケージの下に敷板と防水シート", "must", "2,000円前後", "畳のへこみと、おしっこの染み込みを防ぎます。"],
+    ["r3", "タイルカーペットを敷く", "nice", "8,000円前後", "洗えるタイプを、遊ぶ場所に部分的に。汚れた1枚だけ交換できます。"],
+    ["r4", "障子紙を破れにくいものに替える", "must", "2,000〜4,000円", "プラスチック障子紙にします。低い段だけでも効果があります。"],
+    ["r5", "ふすまに保護シートを貼る", "nice", "2,000円前後", "下から猫の背が届く高さまで貼れるものを。貼る前に、はがしてもふすまが傷まないか確認します。"],
+    ["r6", "ふすまにストッパーを付ける", "must", "2,000円前後", "大きくなると前足で開けます。押入れや廊下側は特に。"],
+    ["r7", "コードカバーを付ける", "must", "1,000円前後", "かじって感電しないように。使わないコードは抜きます。"],
+    ["r8", "網戸ストッパーを付ける", "must", "1,000円前後", "網戸は猫でも開けられます。1Fの窓すべてに付けます。"],
+    ["r9", "玄関にペットゲートを置く", "must", "6,000円前後", "帰宅時の脱走を防ぎます。部屋のふすまを必ず閉める方法でも代用できます。"],
+  ]},
+  friend: { head: "知人に確認", items: [
+    ["f1", "生年月日（推定でも可）", "must", "", "ワクチンの時期を決めるのに必要です。"],
+    ["f2", "今のごはんの銘柄・回数", "must", "", "ふやかしているか、ドライを噛めるかも聞きます。"],
+    ["f3", "猫砂の種類", "must", "", ""],
+    ["f4", "ワクチン・駆虫の履歴", "must", "", "記録があれば、もらいます。"],
+    ["f5", "ウイルス検査の有無", "must", "", "親猫の検査も分かれば聞きます。"],
+    ["f6", "マイクロチップの有無", "must", "", "入っていれば登録の変更が必要です。"],
+    ["f7", "迎える日を相談", "must", "", "連休の初日の午前中が理想です。"],
+    ["f8", "使用済みの砂とにおいのついた布をもらう", "must", "", "落ち着きやすく、トイレも覚えやすくなります。"],
+  ]},
+  vet: { head: "動物病院", items: [
+    ["v1", "病院を決める", "must", "", "18時以降の診療、土日の診療を確認します。"],
+    ["v2", "夜間救急の場所を調べる", "must", "", ""],
+    ["v3", "健康診断を予約", "must", "", "迎えて数日〜1週間以内に。便も持っていくと検査してもらえます。"],
+    ["v4", "ペット保険を検討", "nice", "", "入るなら健康なうちに。"],
+  ]},
+  family: { head: "家族3人で決めること", items: [
+    ["j1", "アレルギーを確認", "must", "", "迎える前に知人宅で猫と過ごし、全員に症状が出ないか見ます。"],
+    ["j2", "担当を決める", "must", "", "ごはん、トイレ、昼のカメラ確認。"],
+    ["j3", "留守中の緊急時に帰る人を決める", "must", "", "1番目と2番目を決めておきます。"],
+    ["j4", "昼に頼れる人を探す", "nice", "", "最初の2週間だけでも。知人、近所の親戚、ペットシッターなど。"],
+    ["j5", "ルールを共有", "must", "", "入るときは足元を見る、ドアはすぐ閉める。"],
+  ]},
+  first: { head: "順番にやること", items: [
+    ["w1", "キャリーで連れて帰る", "must", "", "車ならシートベルトで固定します。途中で扉は開けません。"],
+    ["w2", "初日はケージで静かに過ごさせる", "must", "", "触るのは本人が寄ってきてから。"],
+    ["w3", "ごはんを1日3〜4回に分ける", "must", "", "1日量はパッケージの表示から計算します。牛乳は飲ませません。"],
+    ["w4", "起きた後と食後にトイレへ連れていく", "must", "", ""],
+    ["w5", "自動給餌器でごはんを出して慣らす", "must", "", "動作音に驚かないか、家にいる間に確認します。"],
+    ["w6", "カメラの映りとスマホ通知を確認", "must", "", ""],
+    ["w7", "1〜2時間の留守番を試す", "must", "", "問題なければ半日に延ばします。"],
+    ["w8", "健康診断を受ける", "must", "", "ワクチン、ノミ・ダニ対策、ウイルス検査の予定を相談します。"],
+    ["w9", "週1回、体重を測って記録", "must", "", ""],
+  ]},
+  danger: { head: "片付け・確認", items: [
+    ["d1", "ひも、輪ゴム、糸、針、ビニールをしまう", "must", "", "誤飲すると手術になることがあります。"],
+    ["d2", "ユリを家に置かない", "must", "", "花粉でも中毒になります。"],
+    ["d3", "人の薬をしまう", "must", "", ""],
+    ["d4", "玉ねぎ、チョコレートを出しっぱなしにしない", "must", "", ""],
+    ["d5", "ストーブにガードを付ける", "must", "", "やけどと、ファンヒーターの近くの毛に注意します。"],
+    ["d6", "こたつは猫だけにしない", "must", "", "中で熱中症になることがあります。"],
+    ["d7", "浴槽の水を抜くかフタをする", "must", "", ""],
+    ["d8", "洗濯機は回す前に中を見る", "must", "", "特にドラム式。"],
+    ["d9", "家具の裏の隙間をふさぐ", "must", "", "冷蔵庫、タンス、エアコンの裏など。"],
+    ["d10", "仏壇の線香とろうそくに注意", "nice", "", "仏壇があれば。"],
+    ["d11", "階段は慣れるまで見ているときだけ", "must", "", "2Fは家に慣れてから、人が見ている時間に行き来させます。"],
+  ]},
+};
+const TAG = { must: "必須", away: "留守番向き", nice: "あると良い" };
+const KEY = "kitten-checks-v1";
+const all = Object.values(LISTS).flatMap(l => l.items);
+const checks = new Map();
+let done = new Set();
+
+try { done = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) {}
+
+function persistLocal() {
+  try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) {}
+}
+
+function build() {
+  for (const [key, list] of Object.entries(LISTS)) {
+    const ul = document.getElementById("l-" + key);
+    for (const [id, name, tag, price, detail] of list.items) {
+      const li = document.createElement("li");
+      const label = document.createElement("label");
+      label.className = "item";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.id = "c-" + id;
+      box.addEventListener("change", () => toggle(id, box.checked));
+      const body = document.createElement("span");
+      const head = document.createElement("span");
+      head.className = "item-head";
+      const n = document.createElement("span");
+      n.className = "item-name";
+      n.textContent = name;
+      head.append(n);
+      if (tag !== "must" || ["away", "goods", "room"].includes(key)) {
+        const t = document.createElement("span");
+        t.className = "tag " + tag;
+        t.textContent = TAG[tag];
+        head.append(t);
+      }
+      if (price) {
+        const p = document.createElement("span");
+        p.className = "price";
+        p.textContent = price;
+        head.append(p);
+      }
+      body.append(head);
+      if (detail) {
+        const d = document.createElement("span");
+        d.className = "item-detail";
+        d.textContent = detail;
+        body.append(d);
+      }
+      label.append(box, body);
+      li.append(label);
+      ul.append(li);
+      checks.set(id, { li, box });
+    }
+  }
+}
+
+function paint() {
+  for (const [id, c] of checks) {
+    const on = done.has(id);
+    c.box.checked = on;
+    c.li.classList.toggle("done", on);
+  }
+  const total = all.length;
+  const n = all.filter(i => done.has(i[0])).length;
+  document.getElementById("progNum").textContent = n + " / " + total;
+  document.getElementById("progFill").style.width = (total ? n / total * 100 : 0) + "%";
+  for (const [key, list] of Object.entries(LISTS)) {
+    const h = document.getElementById("h-" + (key === "away" ? "rusu" : key));
+    const c = list.items.filter(i => done.has(i[0])).length;
+    h.textContent = list.head;
+    const s = document.createElement("small");
+    s.textContent = c + " / " + list.items.length;
+    h.append(s);
+  }
+}
+
+function toggle(id, on) {
+  if (on) done.add(id); else done.delete(id);
+  persistLocal();
+  paint();
+}
+
+build();
+paint();
+document.getElementById("onlyOpen").addEventListener("change", e => {
+  document.body.classList.toggle("only-open", e.target.checked);
+});
+if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
+  document.getElementById("install").hidden = true;
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
