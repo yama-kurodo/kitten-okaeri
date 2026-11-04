@@ -477,6 +477,19 @@ let done = new Set();
 
 try { done = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) {}
 
+// Claude版で付けたチェック。各端末に一度だけ足すので、あとで外したものは戻らない
+const BASE = ["a1", "a2", "a3", "a7", "g1", "g2", "g3", "g8", "g9", "g10", "g15"];
+const BASE_KEY = "kitten-base-v1";
+try {
+  const applied = new Set(JSON.parse(localStorage.getItem(BASE_KEY) || "[]"));
+  const fresh = BASE.filter(id => !applied.has(id));
+  if (fresh.length) {
+    fresh.forEach(id => { done.add(id); applied.add(id); });
+    localStorage.setItem(BASE_KEY, JSON.stringify([...applied]));
+    localStorage.setItem(KEY, JSON.stringify([...done]));
+  }
+} catch (e) { BASE.forEach(id => done.add(id)); }
+
 function persistLocal() {
   try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) {}
 }
