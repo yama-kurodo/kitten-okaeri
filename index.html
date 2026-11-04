@@ -139,6 +139,8 @@ table { width: 100%; border-collapse: collapse; }
 .alert { padding: 14px; border-radius: 8px; background: var(--alert-bg); color: var(--alert-fg); }
 .alert h2 { margin-bottom: 8px; }
 .alert p { margin: 8px 0 0; }
+.alert h3 { margin-top: 0; color: inherit; }
+#kajiri .alert { margin-top: 16px; }
 .save { margin: 0; font-size: 13px; color: var(--muted); }
 a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (max-width: 460px) {
@@ -172,6 +174,7 @@ a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline
       <a href="#mae">迎える前</a>
       <a href="#week">最初の1週間</a>
       <a href="#kiken">危険チェック</a>
+      <a href="#kajiri">かじったら</a>
       <a href="#byoin">すぐ病院へ</a>
     </nav>
   </div>
@@ -271,6 +274,41 @@ a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline
     <p class="note">迎える前に、1Fを中心に家族で見て回ります。</p>
     <h3 id="h-danger"></h3>
     <ul class="list" id="l-danger"></ul>
+  </section>
+
+  <section id="kajiri">
+    <h2>かじっているのを見つけたら</h2>
+    <p class="note">叱らずに「止めて、別の物に向けて、原因を消す」のが正解です。猫は叱られても何が悪かったのか結びつけられず、強く叱ると人を怖がって、見ていない所でかじるようになります。</p>
+
+    <h3>その場でやること</h3>
+    <ol class="steps">
+      <li><b>止める</b><span>低い声で短く「ダメ」と言うか、そっと抱き上げて離す。家族で言葉をそろえる</span></li>
+      <li><b>別の物に向ける</b><span>すぐにじゃらしや噛んでいいおもちゃで遊ばせる。コードより楽しい物があると覚えさせる</span></li>
+      <li><b>原因を消す</b><span>そのコードをカバーするか片付ける。かじれない状態にするのがいちばん効く</span></li>
+    </ol>
+
+    <h3>やってはいけないこと</h3>
+    <ul class="plain">
+      <li>たたく、大声で怒鳴る、追いかける</li>
+      <li>水をかける、息を吹きかける</li>
+      <li>後から見つけて叱る。何のことか分からず、怖がるだけです</li>
+    </ul>
+
+    <div class="alert">
+      <h3>電源コードのときは安全を先に</h3>
+      <ul class="plain">
+        <li>かじっているだけなら、抱き上げて離し、プラグを抜いてからコードを確かめる</li>
+        <li>コードをくわえたまま動かない、けいれんしているときは感電しています。<b>猫に触る前に、プラグを抜くかブレーカーを落とす。</b>触った人も感電します</li>
+        <li>口元のやけど、よだれ、苦しそうな呼吸があれば、元気そうでもすぐ病院へ。肺に水がたまる症状が後から出ることがあります</li>
+      </ul>
+    </div>
+
+    <h3>かじる理由を減らす</h3>
+    <ul class="plain">
+      <li>生後3〜6か月ごろは歯が生え変わり、口がむずむずします。子猫用の噛むおもちゃを用意する</li>
+      <li>退屈もいたずらの原因です。夜の遊び時間にしっかり体を動かす</li>
+      <li>手で遊ばせると「手はかじっていい物」と覚えます。遊びはおもちゃで。手をかじったら遊びをやめて離れる</li>
+    </ul>
   </section>
 
   <section id="byoin" class="alert">
