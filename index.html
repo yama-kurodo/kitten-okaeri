@@ -86,6 +86,23 @@ main { padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
 .row { display: grid; grid-template-columns: 5em minmax(0, 1fr); align-items: center; gap: 10px; }
 .row-label { font-weight: 700; line-height: 1.3; }
 .row-label small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+.row.stack { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.row.stack .row-label small { display: inline; margin-left: 8px; }
+.seg.five button { font-size: 13px; padding: 0 2px; }
+.events { display: grid; gap: 8px; }
+.events-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.events-head .row-label small { display: inline; margin-left: 8px; font-size: 14px; }
+.add-btn { min-height: 40px; padding: 0 14px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font-weight: 700; cursor: pointer; }
+.ev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ev-list.chips-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips-list .ev { gap: 2px; padding: 4px 4px 4px 6px; }
+.chips-list .ev input[type="time"] { padding: 4px 6px; font-size: 15px; }
+.chips-list .ev .del { width: 30px; height: 30px; }
+.ev { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.ev input[type="time"] { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
+.ev .del { width: 36px; height: 36px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 18px; cursor: pointer; }
+.ev .seg { flex: 1 1 100%; }
+.ev-list:not(.chips-list) .ev .del { margin-left: auto; }
 .seg { display: flex; gap: 6px; }
 .seg button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14px; cursor: pointer; }
 .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
@@ -530,13 +547,13 @@ const SECTIONS = [["first", "最初の1週間"], ["away", "留守番の道具"],
 const TAG = { must: "必須", away: "留守番向き", nice: "あると良い" };
 const OKAERI = "2026-11-20";
 const MEALS = [["m1", "朝", "7:30"], ["m2", "昼", "13:00 給餌器"], ["m3", "夕", "18:30"], ["m4", "夜", "22:00"]];
-const MEAL_OPTS = [["ok", "完食"], ["half", "残した"], ["no", "食べない", true]];
+const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
 const WATER_OPTS = [["ok", "ふつう"], ["low", "少ない", true], ["much", "多い", true]];
 const ENERGY_OPTS = [["good", "元気"], ["normal", "ふつう"], ["low", "ぐったり", true]];
 const SEED_LOGS = {
   "2026-11-13": { weight: 1300, memo: "お迎え前の検診で1.3kg" },
-  "2026-11-20": { m3: "half", memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
+  "2026-11-20": { m3: 8, memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
 };
 const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab";
 const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
@@ -551,7 +568,19 @@ function label(s) { const d = parse(s); return (d.getMonth() + 1) + "/" + d.getD
 function today() { return ymd(new Date()); }
 
 let done = new Set(load(K_CHECKS, []));
-let logs = load(K_LOGS, {});
+const isSet = v => v !== "" && v != null;
+// 古い記録（完食/残した/食べない、回数だけのトイレ）を、何割と時刻つきの形に直す
+function normalizeLog(r) {
+  const o = Object.assign({}, r);
+  const MAP = { ok: 10, half: 5, no: 0 };
+  for (const [k] of MEALS) if (typeof o[k] === "string" && o[k] in MAP) o[k] = MAP[o[k]];
+  if (typeof o.pee === "number") o.pee = Array.from({ length: o.pee }, () => "");
+  if (typeof o.poop === "number") o.poop = Array.from({ length: o.poop }, () => ({ t: "", s: o.poopState || "" }));
+  delete o.poopState;
+  return o;
+}
+function normalizeAll(obj) { const out = {}; for (const [d, r] of Object.entries(obj)) out[d] = normalizeLog(r); return out; }
+let logs = normalizeAll(load(K_LOGS, {}));
 let cur = today();
 let db = null, sharedChecks = false, sharedLogs = false, canWrite = true;
 const checkChains = new Map(), logChains = new Map(), logTimers = new Map();
@@ -571,6 +600,12 @@ if (!load("kitten-seed-v1", false)) {
   save(K_LOGS, logs);
   save("kitten-seed-v1", true);
 }
+if (!load("kitten-fix-v1", false)) {
+  const r = logs["2026-11-20"];
+  if (r && r.m3 === 5 && /8割/.test(r.memo || "")) r.m3 = 8;
+  save(K_LOGS, logs);
+  save("kitten-fix-v1", true);
+}
 
 
 function setSave(t) { $("saveState").textContent = t; }
@@ -581,15 +616,15 @@ function onWriteFail() {
 
 // ---- きょう ----
 const segs = [], counters = [];
-function row(name, sub, control) {
-  const r = el("div", "row");
+function row(name, sub, control, stack) {
+  const r = el("div", stack ? "row stack" : "row");
   const l = el("div", "row-label", name);
   if (sub) l.append(el("small", null, sub));
   r.append(l, control);
   return r;
 }
 function seg(field, opts, aria) {
-  const box = el("div", "seg");
+  const box = el("div", opts.length > 3 ? "seg five" : "seg");
   box.setAttribute("role", "group");
   box.setAttribute("aria-label", aria);
   for (const [v, text, bad] of opts) {
@@ -618,13 +653,78 @@ function counter(field, aria) {
   box.append(minus, out, plus);
   return box;
 }
+const eventViews = [];
+function nowHM() { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function evTime(field, e) { return field === "poop" ? (e.t || "") : (e || ""); }
+function sortEv(field, list) {
+  return list.slice().sort((a, b) => {
+    const x = evTime(field, a), y = evTime(field, b);
+    return x === y ? 0 : !x ? 1 : !y ? -1 : x < y ? -1 : 1;
+  });
+}
+function eventBlock(field, name) {
+  const wrap = el("div", "events");
+  const head = el("div", "events-head");
+  const title = el("span", "row-label", name);
+  const cnt = el("small");
+  title.append(cnt);
+  const add = el("button", "add-btn", "＋ 記録");
+  add.type = "button";
+  add.setAttribute("aria-label", name + "を記録する");
+  add.addEventListener("click", () => {
+    const list = ((logs[cur] || {})[field] || []).slice();
+    const t = cur === today() ? nowHM() : "";
+    list.push(field === "poop" ? { t, s: "normal" } : t);
+    setLog(cur, { [field]: sortEv(field, list) });
+  });
+  head.append(title, add);
+  const ul = el("ul", field === "pee" ? "ev-list chips-list" : "ev-list");
+  wrap.append(head, ul);
+  eventViews.push({ field, name, ul, cnt });
+  return wrap;
+}
+function evRow(field, name, e, i) {
+  const li = el("li", "ev");
+  const change = fn => { const list = ((logs[cur] || {})[field] || []).slice(); fn(list); setLog(cur, { [field]: sortEv(field, list) }); };
+  const time = el("input");
+  time.type = "time";
+  time.value = evTime(field, e);
+  time.setAttribute("aria-label", name + "の時刻");
+  time.addEventListener("change", () => change(list => { list[i] = field === "poop" ? Object.assign({}, list[i], { t: time.value }) : time.value; }));
+  const del = el("button", "del", "×");
+  del.type = "button";
+  del.setAttribute("aria-label", "この" + name + "の記録を消す");
+  del.addEventListener("click", () => change(list => list.splice(i, 1)));
+  li.append(time, del);
+  if (field === "poop") {
+    const box = el("div", "seg");
+    box.setAttribute("role", "group");
+    box.setAttribute("aria-label", "うんちの状態");
+    for (const [v, text, bad] of POOP_OPTS) {
+      const b = el("button", bad ? "bad" : "", text);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(e.s === v));
+      b.addEventListener("click", () => change(list => { list[i] = Object.assign({}, list[i], { s: list[i].s === v ? "" : v }); }));
+      box.append(b);
+    }
+    li.append(box);
+  }
+  return li;
+}
+function renderEvents(r) {
+  for (const v of eventViews) {
+    const list = r[v.field] || [];
+    v.cnt.textContent = list.length + "回";
+    if (v.ul.contains(document.activeElement)) continue;
+    v.ul.replaceChildren(...list.map((e, i) => evRow(v.field, v.name, e, i)));
+    if (!list.length) v.ul.append(el("li", "hint", "「＋ 記録」を押すと、今の時刻で記録します。"));
+  }
+}
+function mealLabel(v) { const o = MEAL_OPTS.find(x => x[0] === v); return o ? o[1] : "―"; }
+function poopLabel(v) { const o = POOP_OPTS.find(x => x[0] === v); return o ? o[1] : ""; }
 function buildToday() {
-  for (const [k, name, time] of MEALS) $("mealRows").append(row(name, time, seg(k, MEAL_OPTS, name + "ごはん")));
-  $("toiletRows").append(
-    row("おしっこ", "回数", counter("pee", "おしっこ")),
-    row("うんち", "回数", counter("poop", "うんち")),
-    row("うんちの状態", null, seg("poopState", POOP_OPTS, "うんちの状態")),
-  );
+  for (const [k, name, time] of MEALS) $("mealRows").append(row(name, time, seg(k, MEAL_OPTS, name + "ごはん"), true));
+  $("toiletRows").append(eventBlock("pee", "おしっこ"), eventBlock("poop", "うんち"));
   $("bodyRows").append(
     row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
     row("水", "飲む量", seg("water", WATER_OPTS, "水を飲む量")),
@@ -656,12 +756,13 @@ function lastWeightBefore(date) {
 }
 function alertsFor(date) {
   const r = logs[date] || {}, items = [];
-  const meals = MEALS.map(m => r[m[0]]).filter(Boolean);
-  if (meals.length >= 2 && meals.every(v => v === "no")) items.push("ごはんを食べていない");
+  const meals = MEALS.map(m => r[m[0]]).filter(isSet);
+  if (meals.length >= 2 && meals.every(v => v === 0)) items.push("ごはんを食べていない");
   if (r.energy === "low") items.push("ぐったりしている");
-  if (r.poopState === "diarrhea") {
+  const diarrhea = x => ((x || {}).poop || []).some(p => p.s === "diarrhea");
+  if (diarrhea(r)) {
     const d = parse(date); d.setDate(d.getDate() - 1);
-    items.push((logs[ymd(d)] || {}).poopState === "diarrhea" ? "下痢が2日続いている" : "下痢をしている");
+    items.push(diarrhea(logs[ymd(d)]) ? "下痢が2日続いている" : "下痢をしている");
   }
   if ((r.vomit || 0) >= 2) items.push("1日に2回以上吐いた");
   return items;
@@ -673,6 +774,7 @@ function renderToday() {
   $("goToday").hidden = cur === t;
   for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
   for (const c of counters) c.out.textContent = (r[c.field] || 0) + "回";
+  renderEvents(r);
   const w = $("weight"), m = $("memo");
   if (document.activeElement !== w) w.value = r.weight || "";
   if (document.activeElement !== m) m.value = r.memo || "";
@@ -715,8 +817,10 @@ function summaryText(date) {
   const r = logs[date] || {};
   const name = (opts, v) => { const o = opts.find(x => x[0] === v); return o ? o[1] : "―"; };
   const lines = ["【子猫の記録 " + label(date) + "】"];
-  lines.push("ごはん：" + MEALS.map(([k, n]) => n + " " + name(MEAL_OPTS, r[k])).join("／"));
-  lines.push("おしっこ " + (r.pee || 0) + "回・うんち " + (r.poop || 0) + "回" + (r.poopState ? "（" + name(POOP_OPTS, r.poopState) + "）" : ""));
+  lines.push("ごはん：" + MEALS.map(([k, n]) => n + " " + mealLabel(r[k])).join("／"));
+  const pee = r.pee || [], poop = r.poop || [];
+  lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
+  lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
   lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + name(WATER_OPTS, r.water) + "　吐いた：" + (r.vomit || 0) + "回");
   if (r.weight) lines.push("体重：" + r.weight + "g");
   if (r.memo) lines.push("メモ：" + r.memo);
@@ -738,7 +842,9 @@ function copySummary() {
 
 // ---- きろく ----
 function hasData(r) {
-  return r && Object.entries(r).some(([k, v]) => v !== "" && v != null && v !== 0);
+  if (!r) return false;
+  return MEALS.some(([k]) => isSet(r[k])) || (r.pee || []).length > 0 || (r.poop || []).length > 0
+    || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || !!r.water;
 }
 function renderHistory() {
   const ul = $("days");
@@ -753,14 +859,11 @@ function renderHistory() {
     b.append(el("span", "day-date", label(d)));
     const chips = el("span", "chips");
     const add = (t, bad) => chips.append(el("span", bad ? "chip bad" : "chip", t));
-    const ms = MEALS.map(m => r[m[0]]).filter(Boolean);
-    if (ms.length) {
-      const c = v => ms.filter(x => x === v).length;
-      const parts = [["完食", c("ok")], ["残した", c("half")], ["食べない", c("no")]].filter(p => p[1]);
-      add("ごはん " + parts.map(p => p[0] + p[1]).join("・"), c("no") > 0);
-    }
-    if (r.pee || r.poop) add("尿" + (r.pee || 0) + " 便" + (r.poop || 0));
-    if (r.poopState && r.poopState !== "normal") add(POOP_OPTS.find(o => o[0] === r.poopState)[1], true);
+    const ms = MEALS.filter(m => isSet(r[m[0]]));
+    if (ms.length) add("ごはん " + ms.map(m => m[1] + mealLabel(r[m[0]])).join(" "), ms.some(m => r[m[0]] === 0));
+    const pee = r.pee || [], poop = r.poop || [];
+    if (pee.length || poop.length) add("おしっこ" + pee.length + " うんち" + poop.length);
+    for (const s of ["soft", "diarrhea"]) if (poop.some(p => p.s === s)) add(poopLabel(s), true);
     if (r.energy) add(ENERGY_OPTS.find(o => o[0] === r.energy)[1], r.energy === "low");
     if (r.vomit) add("吐いた" + r.vomit, true);
     if (r.weight) add(r.weight + "g");
@@ -926,7 +1029,7 @@ async function connect() {
     if (!snap.metadata.fromCache) settle();
     if (!canWrite) return;
     const next = {};
-    for (const d of snap.docs) if (d.exists) next[d.id] = Object.assign({}, d.data());
+    for (const d of snap.docs) if (d.exists) next[d.id] = normalizeLog(d.data());
     for (const date of logTimers.keys()) if (logs[date]) next[date] = logs[date];
     if (first) {
       // 共有の前にこの端末で付けた記録を、保存先へ送る
