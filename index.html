@@ -128,13 +128,17 @@ textarea { resize: vertical; }
 .chart .dot.last { fill: var(--accent); }
 .chart text { fill: var(--muted); font-size: 11px; font-family: var(--body); font-variant-numeric: tabular-nums; }
 .chart text.val { fill: var(--fg); font-size: 12px; font-weight: 700; }
-.days { list-style: none; margin: 0; padding: 0; }
-.days li + li { border-top: 1px solid var(--line); }
-.day-btn { display: grid; gap: 4px; width: 100%; padding: 10px 0; border: 0; background: none; text-align: left; cursor: pointer; }
-.day-date { font-weight: 700; }
-.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
-.chip { padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 12px; }
-.chip.bad { background: var(--must-soft); color: var(--must); }
+.table-wrap { overflow-x: auto; }
+.log-table { border-collapse: separate; border-spacing: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.log-table th, .log-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: nowrap; }
+.log-table th { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); }
+.log-table th:first-child, .log-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+.log-table td.memo { white-space: normal; min-width: 12em; max-width: 18em; }
+.log-table .none { color: var(--line); }
+.log-table .bad { color: var(--must); font-weight: 700; }
+.log-table small { display: block; font-size: 11px; color: var(--muted); }
+.log-table small.bad { color: var(--must); }
+.date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
 
 .prog-card { gap: 8px; }
 .prog-row { display: flex; align-items: center; gap: 12px; }
@@ -266,8 +270,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     </div>
     <div class="card">
       <h2>これまでの記録</h2>
-      <p class="hint">日付をタップすると、その日の記録を開きます。</p>
-      <ul class="days" id="days"></ul>
+      <p class="hint">表は横にスクロールできます。日付をタップすると、その日の記録を開きます。</p>
+      <div class="table-wrap"><table class="log-table" id="logTable"></table></div>
     </div>
   </section>
 
@@ -860,33 +864,55 @@ function hasData(r) {
     || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || r.water > 0;
 }
 function renderHistory() {
-  const ul = $("days");
+  const table = $("logTable");
   const dates = Object.keys(logs).filter(d => hasData(logs[d])).sort().reverse();
-  ul.replaceChildren();
-  if (!dates.length) ul.append(el("li", "hint", "まだ記録がありません。「きょう」から記録できます。"));
+  table.replaceChildren();
+  if (!dates.length) {
+    const tr = el("tr");
+    tr.append(el("td", "hint", "まだ記録がありません。「きょう」から記録できます。"));
+    table.append(tr);
+    renderChart();
+    return;
+  }
+  const head = el("tr");
+  for (const t of ["日付", "朝", "昼", "夕", "夜", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
+  const thead = el("thead");
+  thead.append(head);
+  const tbody = el("tbody");
+  const none = () => el("td", "none", "―");
   for (const d of dates) {
     const r = logs[d];
-    const li = el("li");
-    const b = el("button", "day-btn");
+    const tr = el("tr");
+    const first = el("td");
+    const b = el("button", "date-btn", label(d));
     b.type = "button";
-    b.append(el("span", "day-date", label(d)));
-    const chips = el("span", "chips");
-    const add = (t, bad) => chips.append(el("span", bad ? "chip bad" : "chip", t));
-    const ms = MEALS.filter(m => isSet(r[m[0]]));
-    if (ms.length) add("ごはん " + ms.map(m => m[1] + mealLabel(r[m[0]])).join(" "), ms.some(m => r[m[0]] === 0));
-    const pee = r.pee || [], poop = r.poop || [];
-    if (pee.length || poop.length) add("おしっこ" + pee.length + " うんち" + poop.length);
-    for (const s of ["soft", "diarrhea"]) if (poop.some(p => p.s === s)) add(poopLabel(s), true);
-    if (r.energy) add(ENERGY_OPTS.find(o => o[0] === r.energy)[1], r.energy === "low");
-    if (r.water > 0) add("水" + Math.round(r.water * ML_PER_MARK) + "ml");
-    if (r.vomit) add("吐いた" + r.vomit, true);
-    if (r.weight) add(r.weight + "g");
-    if (r.memo) add("メモ：" + (r.memo.length > 14 ? r.memo.slice(0, 14) + "…" : r.memo));
-    b.append(chips);
     b.addEventListener("click", () => { cur = d; renderToday(); showTab("today"); });
-    li.append(b);
-    ul.append(li);
+    first.append(b);
+    tr.append(first);
+    for (const [k] of MEALS) tr.append(isSet(r[k]) ? el("td", r[k] === 0 ? "bad" : null, mealLabel(r[k])) : none());
+    const pee = r.pee || [];
+    if (pee.length) {
+      const td = el("td", null, pee.length + "回");
+      pee.forEach(t => td.append(el("small", null, t || "時刻なし")));
+      tr.append(td);
+    } else tr.append(none());
+    const poop = r.poop || [];
+    if (poop.length) {
+      const td = el("td", null, poop.length + "回");
+      poop.forEach(p => {
+        const bad = p.s === "soft" || p.s === "diarrhea";
+        td.append(el("small", bad ? "bad" : null, (p.t || "時刻なし") + (bad ? " " + poopLabel(p.s) : "")));
+      });
+      tr.append(td);
+    } else tr.append(none());
+    tr.append(r.water > 0 ? el("td", null, Math.round(r.water * ML_PER_MARK) + "ml") : none());
+    tr.append(r.energy ? el("td", r.energy === "low" ? "bad" : null, ENERGY_OPTS.find(o => o[0] === r.energy)[1]) : none());
+    tr.append(r.vomit > 0 ? el("td", "bad", r.vomit + "回") : none());
+    tr.append(r.weight > 0 ? el("td", null, r.weight + "g") : none());
+    tr.append(r.memo ? el("td", "memo", r.memo) : none());
+    tbody.append(tr);
   }
+  table.append(thead, tbody);
   renderChart();
 }
 function renderChart() {
