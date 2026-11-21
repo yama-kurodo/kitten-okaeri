@@ -15,20 +15,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Zen+Maru+Gothic:wght@500;700&display=swap">
 <style>
-/* 畳の色を地に、1列のチェック帳。上に進み具合と移動ボタンを固定する */
+/* 1画面に1つの用事。下のタブで「きょう・きろく・準備・ガイド」を切り替える */
 :root {
   --bg: #eff1e2;
   --surface: #fbfbf4;
   --line: #d3d7bf;
   --fg: #2a2e22;
-  --muted: #62684f;
+  --muted: #5d634b;
   --accent: #4d6b2e;
   --accent-soft: #dfe7c8;
+  --on-accent: #ffffff;
   --must: #a83a55;
   --must-soft: #f6dfe4;
   --away: #23607f;
   --away-soft: #d9e9f1;
-  --nice: #62684f;
+  --nice: #5d634b;
   --nice-soft: #e6e8d8;
   --alert-bg: #f9e2dc;
   --alert-fg: #8a2b17;
@@ -38,7 +39,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #1c1f17; --surface: #262a1f; --line: #3d4331; --fg: #ecefdf; --muted: #b0b69c;
-    --accent: #a9c97c; --accent-soft: #38452a;
+    --accent: #a9c97c; --accent-soft: #38452a; --on-accent: #1c1f17;
     --must: #f0a1b3; --must-soft: #4d2a33;
     --away: #93cbe6; --away-soft: #223f4d;
     --nice: #b0b69c; --nice-soft: #363a2c;
@@ -48,7 +49,7 @@
 }
 :root[data-theme="dark"] {
   --bg: #1c1f17; --surface: #262a1f; --line: #3d4331; --fg: #ecefdf; --muted: #b0b69c;
-  --accent: #a9c97c; --accent-soft: #38452a;
+  --accent: #a9c97c; --accent-soft: #38452a; --on-accent: #1c1f17;
   --must: #f0a1b3; --must-soft: #4d2a33;
   --away: #93cbe6; --away-soft: #223f4d;
   --nice: #b0b69c; --nice-soft: #363a2c;
@@ -56,287 +57,340 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 :root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 body { margin: 0; }
-html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 112px); }
-body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.7; }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
-.wrap { max-width: 720px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-header.top { padding-block: 24px 16px; }
-h1 { font-family: var(--display); font-size: 30px; font-weight: 700; line-height: 1.3; margin: 0; text-wrap: balance; }
-.lead { margin: 6px 0 0; color: var(--muted); }
 
-.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--surface); border-block: 1px solid var(--line); }
-.bar-in { display: grid; gap: 8px; padding-block: 10px; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6; }
+button { font: inherit; color: inherit; }
+.wrap { max-width: 640px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.top { padding-block: 16px 4px; }
+.top-in { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+h1 { font-family: var(--display); font-size: 24px; font-weight: 700; line-height: 1.3; margin: 0; }
+.since { font-size: 14px; color: var(--muted); }
+main { padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
+.tab { display: grid; gap: 14px; }
+.card { display: grid; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.card h2 { font-family: var(--display); font-size: 18px; font-weight: 700; margin: 0; }
+.hint { margin: 0; font-size: 13px; color: var(--muted); }
+.save-state { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+
+.datebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.round { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); font-size: 22px; line-height: 1; cursor: pointer; }
+.round:disabled { opacity: .35; cursor: default; }
+.date-mid { display: grid; justify-items: center; }
+.date-mid b { font-family: var(--display); font-size: 21px; }
+.link { padding: 2px 4px; border: 0; background: none; color: var(--accent); font-size: 13px; text-decoration: underline; cursor: pointer; }
+
+.rows { display: grid; gap: 12px; }
+.row { display: grid; grid-template-columns: 5em minmax(0, 1fr); align-items: center; gap: 10px; }
+.row-label { font-weight: 700; line-height: 1.3; }
+.row-label small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); }
+.seg { display: flex; gap: 6px; }
+.seg button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 14px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+.seg button.bad[aria-pressed="true"] { background: var(--must); border-color: var(--must); color: var(--on-accent); }
+.counter { display: flex; align-items: center; gap: 14px; }
+.counter output { min-width: 2.5em; text-align: center; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.weight-row { display: flex; align-items: center; gap: 8px; }
+input[type="number"], textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
+.weight-row input { max-width: 9em; font-variant-numeric: tabular-nums; }
+textarea { resize: vertical; }
+.btn { width: 100%; min-height: 48px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 700; cursor: pointer; }
+
+.alert { padding: 14px 16px; border-radius: 12px; background: var(--alert-bg); color: var(--alert-fg); }
+.alert h2 { font-family: var(--display); font-size: 18px; margin: 0 0 6px; }
+.alert ul { margin: 0; padding-left: 1.3em; }
+.alert p { margin: 8px 0 0; }
+
+.chart svg { display: block; width: 100%; height: auto; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.chart .area { fill: var(--accent-soft); opacity: .6; }
+.chart .dot { fill: var(--surface); stroke: var(--accent); stroke-width: 2; }
+.chart .dot.last { fill: var(--accent); }
+.chart text { fill: var(--muted); font-size: 11px; font-family: var(--body); font-variant-numeric: tabular-nums; }
+.chart text.val { fill: var(--fg); font-size: 12px; font-weight: 700; }
+.days { list-style: none; margin: 0; padding: 0; }
+.days li + li { border-top: 1px solid var(--line); }
+.day-btn { display: grid; gap: 4px; width: 100%; padding: 10px 0; border: 0; background: none; text-align: left; cursor: pointer; }
+.day-date { font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.chip { padding: 1px 8px; border-radius: 999px; background: var(--accent-soft); font-size: 12px; }
+.chip.bad { background: var(--must-soft); color: var(--must); }
+
+.prog-card { gap: 8px; }
 .prog-row { display: flex; align-items: center; gap: 12px; }
 .prog-num { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .prog { flex: 1; min-width: 0; height: 8px; border-radius: 4px; background: var(--accent-soft); overflow: hidden; }
-.prog i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
-.toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; cursor: pointer; }
-.toggle input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
-.nav { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
-.nav::-webkit-scrollbar { display: none; }
-.nav a { flex: none; padding: 4px 12px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); font-size: 13px; font-weight: 500; text-decoration: none; }
-
-main { display: grid; gap: 36px; padding-block: 24px 48px; }
-section { min-width: 0; }
-h2 { font-family: var(--display); font-size: 22px; font-weight: 700; line-height: 1.4; margin: 0 0 4px; text-wrap: balance; }
-h3 { font-size: 15px; font-weight: 700; margin: 20px 0 6px; color: var(--accent); display: flex; justify-content: space-between; gap: 12px; }
-h3 small { font-weight: 500; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.note { margin: 0 0 10px; color: var(--muted); }
-
-.list { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.prog i { display: block; height: 100%; width: 0; background: var(--accent); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.toggle input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+details.sec { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+details.sec > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; list-style: none; font-weight: 700; cursor: pointer; }
+details.sec > summary::-webkit-details-marker { display: none; }
+details.sec > summary::after { content: "＋"; color: var(--muted); }
+details.sec[open] > summary::after { content: "－"; }
+details.sec > summary small { margin-left: auto; font-weight: 500; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+details.sec.alert-sec { background: var(--alert-bg); color: var(--alert-fg); border-color: transparent; }
+.sec-body { display: grid; gap: 10px; padding: 0 16px 16px; }
+.sec-body h3 { margin: 6px 0 0; font-size: 15px; color: var(--accent); }
+.sec-body p { margin: 0; }
+.list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .list li + li { border-top: 1px solid var(--line); }
-.item { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; padding: 11px 12px; cursor: pointer; }
-.item input { width: 22px; height: 22px; margin: 2px 0 0; accent-color: var(--accent); cursor: pointer; }
+.item { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 12px 16px; cursor: pointer; }
+.item input { width: 24px; height: 24px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
 .item-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
 .item-name { font-weight: 700; }
-.tag { font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 4px; line-height: 1.7; }
+.tag { padding: 0 7px; border-radius: 4px; font-size: 11px; font-weight: 700; line-height: 1.7; }
 .tag.must { background: var(--must-soft); color: var(--must); }
 .tag.away { background: var(--away-soft); color: var(--away); }
 .tag.nice { background: var(--nice-soft); color: var(--nice); }
-.price { margin-left: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.price { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .item-detail { display: block; font-size: 14px; color: var(--muted); }
 li.done .item-name { color: var(--muted); text-decoration: line-through; }
-li.done .item-detail { opacity: .7; }
 body.only-open li.done { display: none; }
+details.picks { margin: 0 16px 12px 54px; font-size: 14px; }
+details.picks > summary { color: var(--accent); cursor: pointer; }
+.pick { display: grid; gap: 2px; padding: 8px 0 0; }
+.pick-name { font-weight: 700; }
+.pick-why { color: var(--muted); }
+.pick-links { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pick-links a { color: var(--accent); }
 
-.point { display: grid; gap: 8px; margin: 12px 0 0; padding: 14px; background: var(--accent-soft); border-radius: 8px; }
-.point p { margin: 0; }
-.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.steps li { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px; }
-.steps b { color: var(--accent); }
-.steps span { min-width: 0; }
-
-.tl { margin: 12px 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
-.tl-axis, .tl-meals { position: relative; height: 22px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.plain { margin: 0; padding-left: 1.3em; }
+.plain li + li { margin-top: 4px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.steps b { display: block; color: var(--accent); }
+.tl { display: grid; gap: 2px; }
+.tl-axis, .tl-meals { position: relative; height: 20px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .tl-axis span, .tl-meals span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .tl-axis span:first-child { transform: none; }
 .tl-axis span:last-child { transform: translateX(-100%); }
 .tl-meals span { color: var(--must); font-weight: 700; }
-.tl-bar { position: relative; height: 30px; display: flex; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; }
-.tl-bar div { display: flex; align-items: center; justify-content: center; min-width: 0; }
+.tl-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; }
+.tl-bar div { display: flex; align-items: center; justify-content: center; }
 .tl-home { background: var(--accent-soft); }
 .tl-away { background: var(--away-soft); color: var(--away); }
-.tl-dots { position: relative; height: 12px; }
-.tl-dots i { position: absolute; top: 3px; width: 9px; height: 9px; margin-left: -4.5px; border-radius: 50%; background: var(--must); }
-.tl-key { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
-table { width: 100%; border-collapse: collapse; }
-.day { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.day td { padding: 8px 12px; vertical-align: top; }
-.day tr + tr td { border-top: 1px solid var(--line); }
-.day td:first-child { width: 96px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+table.day { width: 100%; border-collapse: collapse; font-size: 15px; }
+table.day td { padding: 6px 0; vertical-align: top; border-top: 1px solid var(--line); }
+table.day td:first-child { width: 6.5em; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
-.picks { display: grid; gap: 10px; margin: 0 12px 12px 46px; padding: 10px 12px; border-radius: 6px; background: var(--accent-soft); }
-.picks-cap { margin: 0; font-size: 12px; font-weight: 700; color: var(--accent); }
-.pick { display: grid; gap: 2px; min-width: 0; }
-.pick-name { font-weight: 700; font-size: 14px; }
-.pick-why { font-size: 13px; color: var(--muted); }
-.pick-links { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
-.pick-links a { color: var(--accent); padding-block: 2px; }
-
-.plain { margin: 0; padding-left: 1.3em; }
-.alert { padding: 14px; border-radius: 8px; background: var(--alert-bg); color: var(--alert-fg); }
-.alert h2 { margin-bottom: 8px; }
-.alert p { margin: 8px 0 0; }
-.alert h3 { margin-top: 0; color: inherit; }
-#kajiri .alert { margin-top: 16px; }
-.save { margin: 0; font-size: 13px; color: var(--muted); }
-a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (max-width: 460px) {
-  .steps li { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .price { margin-left: 0; width: 100%; }
-  .picks { margin-left: 12px; }
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); background: var(--surface); border-top: 1px solid var(--line); }
+.tabbar button { display: grid; justify-items: center; gap: 2px; min-height: 52px; padding: 6px 0 4px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 12px; cursor: pointer; }
+.tabbar svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tabbar button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 340px) {
+  .row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
 }
-@media (prefers-reduced-motion: reduce) { .prog i { transition: none; } }
 </style>
 </head>
 <body>
 
-<div class="wrap">
-  <header class="top">
+<header class="top">
+  <div class="wrap top-in">
     <h1>子猫お迎え帳</h1>
-    <p class="lead">生後2〜3か月の子猫を迎える準備。平日9〜18時は留守番の家向け</p>
-  </header>
-</div>
+    <span class="since" id="since"></span>
+  </div>
+</header>
 
-<div class="bar">
-  <div class="wrap bar-in">
-    <div class="prog-row">
-      <span class="prog-num" id="progNum">0 / 0</span>
-      <div class="prog" aria-hidden="true"><i id="progFill"></i></div>
+<main class="wrap">
+  <section class="tab" id="tab-today" aria-label="きょうの記録">
+    <div class="datebar">
+      <button class="round" id="prevDay" aria-label="前の日">‹</button>
+      <div class="date-mid">
+        <b id="dateLabel"></b>
+        <button class="link" id="goToday" hidden>きょうに戻る</button>
+      </div>
+      <button class="round" id="nextDay" aria-label="次の日">›</button>
+    </div>
+
+    <div class="alert" id="alertBox" role="status" hidden>
+      <h2>気になる記録があります</h2>
+      <ul id="alertList"></ul>
+      <p>子猫は悪化が早いので、迷ったら病院へ電話してください。</p>
+    </div>
+
+    <div class="card">
+      <h2>ごはん</h2>
+      <div class="rows" id="mealRows"></div>
+    </div>
+    <div class="card">
+      <h2>トイレ</h2>
+      <div class="rows" id="toiletRows"></div>
+    </div>
+    <div class="card">
+      <h2>ようす</h2>
+      <div class="rows" id="bodyRows"></div>
+    </div>
+    <div class="card">
+      <h2>体重</h2>
+      <div class="weight-row">
+        <input type="number" id="weight" inputmode="numeric" min="0" step="1" placeholder="例 1300" aria-label="体重（グラム）">
+        <span>g</span>
+      </div>
+      <p class="hint" id="weightNote"></p>
+    </div>
+    <div class="card">
+      <h2>メモ</h2>
+      <textarea id="memo" rows="3" placeholder="くしゃみ、目やに、病院で言われたこと など"></textarea>
+    </div>
+    <button class="btn" id="copyBtn">この日の記録をLINE用にコピー</button>
+    <p class="hint" id="copyNote" role="status"></p>
+    <textarea id="copyFallback" rows="7" readonly hidden></textarea>
+  </section>
+
+  <section class="tab" id="tab-history" aria-label="きろく" hidden>
+    <div class="card">
+      <h2>体重の変化</h2>
+      <div class="chart" id="chart"></div>
+      <p class="hint">子猫は1週間で100g前後ずつ増えるのが目安です。増えない、減ったときは病院で相談します。</p>
+    </div>
+    <div class="card">
+      <h2>これまでの記録</h2>
+      <p class="hint">日付をタップすると、その日の記録を開きます。</p>
+      <ul class="days" id="days"></ul>
+    </div>
+  </section>
+
+  <section class="tab" id="tab-prep" aria-label="準備" hidden>
+    <div class="card prog-card">
+      <div class="prog-row">
+        <span class="prog-num" id="progNum">0 / 0</span>
+        <div class="prog" aria-hidden="true"><i id="progFill"></i></div>
+      </div>
       <label class="toggle"><input type="checkbox" id="onlyOpen">残りだけ表示</label>
     </div>
-    <nav class="nav" aria-label="項目へ移動">
-      <a href="#rusuban">留守番</a>
-      <a href="#kaimono">買うもの</a>
-      <a href="#heya">部屋</a>
-      <a href="#mae">迎える前</a>
-      <a href="#week">最初の1週間</a>
-      <a href="#kiken">危険チェック</a>
-      <a href="#kajiri">かじったら</a>
-      <a href="#byoin">すぐ病院へ</a>
-    </nav>
-  </div>
-</div>
+    <div id="secs" class="tab"></div>
+    <p class="hint">おすすめ商品は2026年11月に通販サイトや比較記事で調べたものです。サイズ、在庫、価格は買う前に確認してください。</p>
+  </section>
 
-<div class="wrap">
-<main>
-  <section id="rusuban">
-    <h2>9〜18時の留守番プラン</h2>
-    <p class="note">普段はケージで留守番させ、昼ごはんは自動給餌器に任せます。2Fの猫の部屋にはエアコンがないので、リビングのエアコンとケージのペットヒーターで暖かさを保ち、カメラと温湿度計で様子を見ます。</p>
-
-    <div class="tl" role="img" aria-label="1日の予定。朝7時30分、昼13時、夕方18時30分、夜22時に食事。9時から18時は留守番。">
-      <div class="tl-axis"><span style="left:0">6時</span><span style="left:16.67%">9時</span><span style="left:66.67%">18時</span><span style="left:100%">24時</span></div>
-      <div class="tl-bar">
-        <div class="tl-home" style="width:16.67%">在宅</div>
-        <div class="tl-away" style="width:50%">留守番</div>
-        <div class="tl-home" style="width:33.33%">在宅</div>
+  <section class="tab" id="tab-guide" aria-label="ガイド" hidden>
+    <details class="sec alert-sec" open>
+      <summary>すぐ病院へ連絡</summary>
+      <div class="sec-body">
+        <ul class="plain">
+          <li>半日以上食べない</li>
+          <li>ぐったりしている、体が冷たい</li>
+          <li>嘔吐や下痢が続く</li>
+          <li>おしっこが丸1日出ない</li>
+        </ul>
+        <p>子猫は悪化が早いので、様子を見ずに電話します。カメラで異変を見つけたら、決めておいた家族が帰ります。</p>
       </div>
-      <div class="tl-dots"><i style="left:8.33%"></i><i style="left:38.89%"></i><i style="left:69.44%"></i><i style="left:88.89%"></i></div>
-      <div class="tl-meals"><span style="left:8.33%">7:30</span><span style="left:38.89%">13:00</span><span style="left:69.44%">18:30</span><span style="left:88.89%">22:00</span></div>
-      <p class="tl-key">赤い点がごはんの時間です。13:00 は自動給餌器が出します。</p>
-    </div>
+    </details>
 
-    <div class="day"><table>
-      <tr><td>7:00</td><td>トイレ掃除、15分遊ぶ</td></tr>
-      <tr><td>7:30</td><td>朝ごはん</td></tr>
-      <tr><td>8:45</td><td>ケージに入れて、下の「出かける前の確認」をする</td></tr>
-      <tr><td>9:00〜18:00</td><td>留守番。昼休みにカメラで食べたか確認する</td></tr>
-      <tr><td>18:00</td><td>ケージから出す。給餌器の減り、トイレ、水を確認する</td></tr>
-      <tr><td>18:30</td><td>夕ごはん</td></tr>
-      <tr><td>19:30</td><td>20〜30分しっかり遊ぶ。日中の分はここで取り返す</td></tr>
-      <tr><td>22:00</td><td>夜ごはん、トイレを確認して就寝</td></tr>
-    </table></div>
+    <details class="sec">
+      <summary>1日の流れ</summary>
+      <div class="sec-body">
+        <div class="tl" role="img" aria-label="ごはんは7時30分、13時、18時30分、22時。9時から18時は留守番。">
+          <div class="tl-axis"><span style="left:0">6時</span><span style="left:16.67%">9時</span><span style="left:66.67%">18時</span><span style="left:100%">24時</span></div>
+          <div class="tl-bar">
+            <div class="tl-home" style="width:16.67%">在宅</div>
+            <div class="tl-away" style="width:50%">留守番</div>
+            <div class="tl-home" style="width:33.33%">在宅</div>
+          </div>
+          <div class="tl-meals"><span style="left:8.33%">7:30</span><span style="left:38.89%">13:00</span><span style="left:69.44%">18:30</span><span style="left:88.89%">22:00</span></div>
+        </div>
+        <table class="day">
+          <tr><td>7:00</td><td>トイレ掃除、15分遊ぶ</td></tr>
+          <tr><td>7:30</td><td>朝ごはん</td></tr>
+          <tr><td>8:45</td><td>ケージに入れて、出かける前の確認</td></tr>
+          <tr><td>9:00〜18:00</td><td>留守番。13:00は自動給餌器。昼休みにカメラで確認</td></tr>
+          <tr><td>18:00</td><td>ケージから出す。給餌器、トイレ、水を確認</td></tr>
+          <tr><td>18:30</td><td>夕ごはん</td></tr>
+          <tr><td>19:30</td><td>20〜30分しっかり遊ぶ</td></tr>
+          <tr><td>22:00</td><td>夜ごはん、トイレを確認して就寝</td></tr>
+        </table>
+      </div>
+    </details>
 
-    <h3>留守番の慣らし方</h3>
-    <ol class="steps">
-      <li><b>1〜3日目</b><span>連休か有休で誰かが家にいる。1〜2時間の外出から試す</span></li>
-      <li><b>4〜14日目</b><span>平日の留守番を開始。できれば家族の誰かが昼に帰るか、知人やペットシッターに頼む</span></li>
-      <li><b>生後4〜5か月まで</b><span>ケージで留守番。朝晩は部屋で自由に過ごす</span></li>
-      <li><b>生後5〜6か月以降</b><span>食事が1日3回で足り、部屋の危険を減らせたら、部屋で留守番に移る</span></li>
-    </ol>
+    <details class="sec">
+      <summary>出かける前の確認（毎日）</summary>
+      <div class="sec-body">
+        <ul class="plain">
+          <li>給餌器にドライフードが入っていて、タイマーが合っている</li>
+          <li>水が2か所入っている</li>
+          <li>トイレがきれい</li>
+          <li>リビングのエアコンがついていて、2Fの室温が20℃前後ある</li>
+          <li>ペットヒーターの電源が入っていて、コードはケージの外</li>
+          <li>内窓と外の窓の鍵が閉まっている</li>
+          <li>ケージの扉を閉めた。じゃらし、ひもをしまった</li>
+          <li>カメラがスマホで見られる</li>
+        </ul>
+      </div>
+    </details>
 
-    <div class="point">
-      <p><b>迎える時期は生後3か月寄りがおすすめです。</b>まだふやかしたごはんを食べている子は、昼の留守番がしにくいです。知人に相談して、ドライフードを食べられるようになってから迎えられると安心です。</p>
-      <p><b>昼はドライフードだけにします。</b>ウェットやふやかしたごはんは、給餌器の中で傷みます。</p>
-      <p><b>病院は18時以降も開いている所を選びます。</b>仕事帰りに連れて行けるかで、もしものときの動きやすさが変わります。</p>
-    </div>
+    <details class="sec">
+      <summary>2Fの室温の目安</summary>
+      <div class="sec-body">
+        <ul class="plain">
+          <li><b>20℃前後:</b> ケージの一部にペットヒーターがあれば過ごせる</li>
+          <li><b>18℃より下:</b> オイルヒーターなどで暖房を足す</li>
+          <li><b>15℃より下:</b> 子猫だけの留守番には寒すぎる</li>
+        </ul>
+        <p class="hint">一般的な目安です。子猫の様子を見ながら調整します。石油ストーブとファンヒーターは留守中に使いません。</p>
+      </div>
+    </details>
 
-    <h3>出かける前の確認（毎日）</h3>
-    <ul class="plain">
-      <li>給餌器にドライフードが入っていて、タイマーが合っている</li>
-      <li>水が2か所入っている</li>
-      <li>トイレがきれいで、固まりを取ってある</li>
-      <li>リビングのエアコンがついていて、2Fの室温が20℃前後ある</li>
-      <li>ペットヒーターの電源が入っている</li>
-      <li>内窓と外の窓の鍵が閉まっている</li>
-      <li>ケージの扉を閉めた。じゃらし、ひもをしまった</li>
-      <li>ヒーターのコードがケージの外を通っている</li>
-      <li>カメラがスマホで見られる</li>
-    </ul>
+    <details class="sec">
+      <summary>かじっているのを見つけたら</summary>
+      <div class="sec-body">
+        <p>叱らずに「止めて、別の物に向けて、原因を消す」。強く叱ると人を怖がり、見ていない所でかじるようになります。</p>
+        <ol class="steps">
+          <li><b>止める</b>低い声で短く「ダメ」と言うか、そっと抱き上げて離す</li>
+          <li><b>別の物に向ける</b>すぐにじゃらしや噛んでいいおもちゃで遊ばせる</li>
+          <li><b>原因を消す</b>そのコードをカバーするか片付ける</li>
+        </ol>
+        <h3>やってはいけないこと</h3>
+        <ul class="plain">
+          <li>たたく、怒鳴る、追いかける、水をかける</li>
+          <li>後から見つけて叱る</li>
+        </ul>
+        <h3>電源コードのとき</h3>
+        <ul class="plain">
+          <li>くわえたまま動かない、けいれんしているときは感電しています。<b>猫に触る前に、プラグを抜くかブレーカーを落とす</b></li>
+          <li>口元のやけど、よだれ、苦しそうな呼吸があれば、元気そうでもすぐ病院へ</li>
+        </ul>
+      </div>
+    </details>
 
-    <h3 id="h-rusu"></h3>
-    <ul class="list" id="l-away"></ul>
+    <details class="sec">
+      <summary>留守番の慣らし方</summary>
+      <div class="sec-body">
+        <ol class="steps">
+          <li><b>1〜3日目</b>誰かが家にいて、1〜2時間の外出から試す</li>
+          <li><b>4〜14日目</b>平日の留守番を開始。できれば昼に誰かが様子を見る</li>
+          <li><b>生後4〜5か月まで</b>ケージで留守番、朝晩は部屋で自由に</li>
+          <li><b>生後5〜6か月以降</b>部屋の危険を減らせたら、部屋で留守番に移る</li>
+        </ol>
+        <p class="hint">昼の給餌器にはドライフードだけを入れます。ウェットやふやかしたごはんは傷みます。</p>
+      </div>
+    </details>
+
+    <details class="sec" id="install">
+      <summary>ホーム画面に追加</summary>
+      <div class="sec-body">
+        <p>追加すると、アイコンから開けて、電波がない所でも使えます。</p>
+        <ol class="plain">
+          <li>LINEから開いたときは、右下のメニューからSafariで開く</li>
+          <li>Safariの共有ボタンをタップ</li>
+          <li>「ホーム画面に追加」をタップ</li>
+        </ol>
+        <p class="hint">記録はこの端末の中に保存されます。Safariとホーム画面のアイコンでは保存先が別なので、追加したあとはアイコンから開いてください。</p>
+      </div>
+    </details>
   </section>
 
-  <section id="kaimono">
-    <h2>買うもの</h2>
-    <p class="note">金額はだいたいの目安です。買う前に店の価格を確認してください。合計の目安は、暮らしの用品が3〜5万円、留守番用が1.5〜3万円、部屋の対策が1〜2万円、最初の医療費が1〜2万円です。</p>
-    <p class="note">おすすめは、2026年11月に通販サイトや比較記事で調べた商品です。実際に試したものではないので、サイズ、在庫、価格は買う前に確認してください。</p>
-    <h3 id="h-goods"></h3>
-    <ul class="list" id="l-goods"></ul>
-  </section>
-
-  <section id="heya">
-    <h2>部屋の準備</h2>
-    <p class="note">猫の部屋は2Fのフローリング6畳にします。床には分割式のマットを敷き、窓2か所は簡易の二重サッシにします。エアコンがないので、迎える前に室温を測って確かめます。</p>
-    <h3 id="h-room"></h3>
-    <ul class="list" id="l-room"></ul>
-  </section>
-
-  <section id="mae">
-    <h2>迎える前にやること</h2>
-    <h3 id="h-friend"></h3>
-    <ul class="list" id="l-friend"></ul>
-    <h3 id="h-vet"></h3>
-    <ul class="list" id="l-vet"></ul>
-    <h3 id="h-family"></h3>
-    <ul class="list" id="l-family"></ul>
-  </section>
-
-  <section id="week">
-    <h2>迎えた日と最初の1週間</h2>
-    <h3 id="h-first"></h3>
-    <ul class="list" id="l-first"></ul>
-  </section>
-
-  <section id="kiken">
-    <h2>危険チェック</h2>
-    <p class="note">迎える前に、2Fの猫の部屋と階段のまわりを中心に家族で見て回ります。</p>
-    <h3 id="h-danger"></h3>
-    <ul class="list" id="l-danger"></ul>
-  </section>
-
-  <section id="kajiri">
-    <h2>かじっているのを見つけたら</h2>
-    <p class="note">叱らずに「止めて、別の物に向けて、原因を消す」のが正解です。猫は叱られても何が悪かったのか結びつけられず、強く叱ると人を怖がって、見ていない所でかじるようになります。</p>
-
-    <h3>その場でやること</h3>
-    <ol class="steps">
-      <li><b>止める</b><span>低い声で短く「ダメ」と言うか、そっと抱き上げて離す。家族で言葉をそろえる</span></li>
-      <li><b>別の物に向ける</b><span>すぐにじゃらしや噛んでいいおもちゃで遊ばせる。コードより楽しい物があると覚えさせる</span></li>
-      <li><b>原因を消す</b><span>そのコードをカバーするか片付ける。かじれない状態にするのがいちばん効く</span></li>
-    </ol>
-
-    <h3>やってはいけないこと</h3>
-    <ul class="plain">
-      <li>たたく、大声で怒鳴る、追いかける</li>
-      <li>水をかける、息を吹きかける</li>
-      <li>後から見つけて叱る。何のことか分からず、怖がるだけです</li>
-    </ul>
-
-    <div class="alert">
-      <h3>電源コードのときは安全を先に</h3>
-      <ul class="plain">
-        <li>かじっているだけなら、抱き上げて離し、プラグを抜いてからコードを確かめる</li>
-        <li>コードをくわえたまま動かない、けいれんしているときは感電しています。<b>猫に触る前に、プラグを抜くかブレーカーを落とす。</b>触った人も感電します</li>
-        <li>口元のやけど、よだれ、苦しそうな呼吸があれば、元気そうでもすぐ病院へ。肺に水がたまる症状が後から出ることがあります</li>
-      </ul>
-    </div>
-
-    <h3>かじる理由を減らす</h3>
-    <ul class="plain">
-      <li>生後3〜6か月ごろは歯が生え変わり、口がむずむずします。子猫用の噛むおもちゃを用意する</li>
-      <li>退屈もいたずらの原因です。夜の遊び時間にしっかり体を動かす</li>
-      <li>手で遊ばせると「手はかじっていい物」と覚えます。遊びはおもちゃで。手をかじったら遊びをやめて離れる</li>
-    </ul>
-  </section>
-
-  <section id="byoin" class="alert">
-    <h2>すぐ病院へ連絡</h2>
-    <ul class="plain">
-      <li>半日以上食べない</li>
-      <li>ぐったりしている、体が冷たい</li>
-      <li>嘔吐や下痢が続く</li>
-      <li>おしっこが丸1日出ない</li>
-    </ul>
-    <p>子猫は悪化が早いので、様子を見ずに電話します。カメラで異変を見つけたら、決めておいた家族が帰ります。</p>
-  </section>
-
-  <section id="install">
-    <h2>ホーム画面に追加</h2>
-    <p class="note">追加すると、アプリのようにアイコンから開けます。一度開いたあとは、電波がない所でも使えます。</p>
-    <ol class="plain">
-      <li>LINEから開いたときは、右下のメニューからSafariで開く</li>
-      <li>Safariの共有ボタンをタップ</li>
-      <li>「ホーム画面に追加」をタップ</li>
-    </ol>
-  </section>
-
-  <p class="save">チェックはこの端末だけに保存します。Safariとホーム画面のアイコンでは保存先が別になるので、追加したあとはアイコンから開いてください。</p>
+  <p class="save-state" id="saveState" role="status">記録はこの端末に保存します。</p>
 </main>
-</div>
+
+<nav class="tabbar" aria-label="画面の切り替え" role="tablist">
+  <button role="tab" data-tab="today" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>きょう</button>
+  <button role="tab" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"/><path d="M5 15l4-4 4 3 6-7"/></svg>きろく</button>
+  <button role="tab" data-tab="prep" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg>準備</button>
+  <button role="tab" data-tab="guide" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5c3-1 6-1 8 1 2-2 5-2 8-1v14c-3-1-6-1-8 1-2-2-5-2-8-1z"/><path d="M12 6v14"/></svg>ガイド</button>
+</nav>
 
 <script>
 const LISTS = {
@@ -472,148 +526,432 @@ const PICKS = {
     ["ネイチャーズミラクル", "酵素入りの海外製品。香りが強いという声があります。", "ネイチャーズミラクル 猫"],
   ],
 };
+const SECTIONS = [["first", "最初の1週間"], ["away", "留守番の道具"], ["goods", "暮らしの用品"], ["room", "2Fの猫の部屋"], ["friend", "知人に確認"], ["vet", "動物病院"], ["family", "家族で決めること"], ["danger", "危険チェック"]];
 const TAG = { must: "必須", away: "留守番向き", nice: "あると良い" };
-const KEY = "kitten-checks-v1";
-const all = Object.values(LISTS).flatMap(l => l.items);
-const checks = new Map();
-let done = new Set();
+const OKAERI = "2026-11-20";
+const MEALS = [["m1", "朝", "7:30"], ["m2", "昼", "13:00 給餌器"], ["m3", "夕", "18:30"], ["m4", "夜", "22:00"]];
+const MEAL_OPTS = [["ok", "完食"], ["half", "残した"], ["no", "食べない", true]];
+const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
+const WATER_OPTS = [["ok", "ふつう"], ["low", "少ない", true], ["much", "多い", true]];
+const ENERGY_OPTS = [["good", "元気"], ["normal", "ふつう"], ["low", "ぐったり", true]];
+const SEED_LOGS = {
+  "2026-11-13": { weight: 1300, memo: "お迎え前の検診で1.3kg" },
+  "2026-11-20": { m3: "half", memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
+};
+const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab";
+const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
+const $ = id => document.getElementById(id);
 
-try { done = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) {}
+function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function parse(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
+function label(s) { const d = parse(s); return (d.getMonth() + 1) + "/" + d.getDate() + "(" + "日月火水木金土"[d.getDay()] + ")"; }
+function today() { return ymd(new Date()); }
 
-// Claude版で付けたチェック。各端末に一度だけ足すので、あとで外したものは戻らない
+let done = new Set(load(K_CHECKS, []));
+let logs = load(K_LOGS, {});
+let cur = today();
+let db = null, sharedChecks = false, sharedLogs = false, canWrite = true;
+const checkChains = new Map(), logChains = new Map(), logTimers = new Map();
+
+
+// Claude版で付けたチェックと、最初の記録。各端末に一度だけ足すので、あとで消したものは戻らない
 const BASE = ["a1", "a2", "a3", "a7", "g1", "g2", "g3", "g8", "g9", "g10", "g15"];
-const BASE_KEY = "kitten-base-v1";
-try {
-  const applied = new Set(JSON.parse(localStorage.getItem(BASE_KEY) || "[]"));
-  const fresh = BASE.filter(id => !applied.has(id));
-  if (fresh.length) {
-    fresh.forEach(id => { done.add(id); applied.add(id); });
-    localStorage.setItem(BASE_KEY, JSON.stringify([...applied]));
-    localStorage.setItem(KEY, JSON.stringify([...done]));
-  }
-} catch (e) { BASE.forEach(id => done.add(id)); }
-
-function persistLocal() {
-  try { localStorage.setItem(KEY, JSON.stringify([...done])); } catch (e) {}
+const appliedChecks = new Set(load("kitten-base-v1", []));
+const freshChecks = BASE.filter(id => !appliedChecks.has(id));
+if (freshChecks.length) {
+  freshChecks.forEach(id => { done.add(id); appliedChecks.add(id); });
+  save("kitten-base-v1", [...appliedChecks]);
+  save(K_CHECKS, [...done]);
+}
+if (!load("kitten-seed-v1", false)) {
+  for (const [d, v] of Object.entries(SEED_LOGS)) if (!logs[d]) logs[d] = Object.assign({}, v);
+  save(K_LOGS, logs);
+  save("kitten-seed-v1", true);
 }
 
-function renderPicks(list) {
-  const box = document.createElement("div");
-  box.className = "picks";
-  const cap = document.createElement("p");
-  cap.className = "picks-cap";
-  cap.textContent = "おすすめ";
-  box.append(cap);
-  for (const [name, why, query] of list) {
-    const row = document.createElement("div");
-    row.className = "pick";
-    const n = document.createElement("span");
-    n.className = "pick-name";
-    n.textContent = name;
-    const w = document.createElement("span");
-    w.className = "pick-why";
-    w.textContent = why;
-    const links = document.createElement("span");
-    links.className = "pick-links";
-    const q = encodeURIComponent(query);
-    for (const [text, href] of [
-      ["Amazonで探す", "https://www.amazon.co.jp/s?k=" + q],
-      ["楽天で探す", "https://search.rakuten.co.jp/search/mall/" + q + "/"],
-    ]) {
-      const a = document.createElement("a");
-      a.href = href;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = text;
-      links.append(a);
-    }
-    row.append(n, w, links);
-    box.append(row);
+
+function setSave(t) { $("saveState").textContent = t; }
+function onWriteFail() {
+  canWrite = false;
+  setSave("共有の保存ができなかったため、この端末だけに保存しています。");
+}
+
+// ---- きょう ----
+const segs = [], counters = [];
+function row(name, sub, control) {
+  const r = el("div", "row");
+  const l = el("div", "row-label", name);
+  if (sub) l.append(el("small", null, sub));
+  r.append(l, control);
+  return r;
+}
+function seg(field, opts, aria) {
+  const box = el("div", "seg");
+  box.setAttribute("role", "group");
+  box.setAttribute("aria-label", aria);
+  for (const [v, text, bad] of opts) {
+    const b = el("button", bad ? "bad" : "", text);
+    b.type = "button";
+    b.addEventListener("click", () => {
+      const now = (logs[cur] || {})[field];
+      setLog(cur, { [field]: now === v ? "" : v });
+    });
+    segs.push({ b, field, v });
+    box.append(b);
   }
   return box;
 }
+function counter(field, aria) {
+  const box = el("div", "counter");
+  const minus = el("button", "round", "−");
+  const out = el("output");
+  const plus = el("button", "round", "＋");
+  minus.type = plus.type = "button";
+  minus.setAttribute("aria-label", aria + "を1回減らす");
+  plus.setAttribute("aria-label", aria + "を1回増やす");
+  minus.addEventListener("click", () => setLog(cur, { [field]: Math.max(0, ((logs[cur] || {})[field] || 0) - 1) }));
+  plus.addEventListener("click", () => setLog(cur, { [field]: ((logs[cur] || {})[field] || 0) + 1 }));
+  counters.push({ out, field });
+  box.append(minus, out, plus);
+  return box;
+}
+function buildToday() {
+  for (const [k, name, time] of MEALS) $("mealRows").append(row(name, time, seg(k, MEAL_OPTS, name + "ごはん")));
+  $("toiletRows").append(
+    row("おしっこ", "回数", counter("pee", "おしっこ")),
+    row("うんち", "回数", counter("poop", "うんち")),
+    row("うんちの状態", null, seg("poopState", POOP_OPTS, "うんちの状態")),
+  );
+  $("bodyRows").append(
+    row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
+    row("水", "飲む量", seg("water", WATER_OPTS, "水を飲む量")),
+    row("吐いた", "回数", counter("vomit", "吐いた")),
+  );
+  $("prevDay").addEventListener("click", () => shiftDay(-1));
+  $("nextDay").addEventListener("click", () => shiftDay(1));
+  $("goToday").addEventListener("click", () => { cur = today(); renderToday(); });
+  $("weight").addEventListener("input", e => {
+    const n = parseInt(e.target.value, 10);
+    setLog(cur, { weight: n > 0 ? n : null });
+  });
+  $("memo").addEventListener("input", e => setLog(cur, { memo: e.target.value }));
+  $("copyBtn").addEventListener("click", copySummary);
+}
+function shiftDay(n) {
+  const d = parse(cur);
+  d.setDate(d.getDate() + n);
+  const next = ymd(d);
+  if (next > today()) return;
+  cur = next;
+  $("copyNote").textContent = "";
+  $("copyFallback").hidden = true;
+  renderToday();
+}
+function lastWeightBefore(date) {
+  const ds = Object.keys(logs).filter(d => d < date && logs[d].weight > 0).sort();
+  return ds.length ? ds[ds.length - 1] : null;
+}
+function alertsFor(date) {
+  const r = logs[date] || {}, items = [];
+  const meals = MEALS.map(m => r[m[0]]).filter(Boolean);
+  if (meals.length >= 2 && meals.every(v => v === "no")) items.push("ごはんを食べていない");
+  if (r.energy === "low") items.push("ぐったりしている");
+  if (r.poopState === "diarrhea") {
+    const d = parse(date); d.setDate(d.getDate() - 1);
+    items.push((logs[ymd(d)] || {}).poopState === "diarrhea" ? "下痢が2日続いている" : "下痢をしている");
+  }
+  if ((r.vomit || 0) >= 2) items.push("1日に2回以上吐いた");
+  return items;
+}
+function renderToday() {
+  const t = today(), r = logs[cur] || {};
+  $("dateLabel").textContent = label(cur) + (cur === t ? " きょう" : "");
+  $("nextDay").disabled = cur >= t;
+  $("goToday").hidden = cur === t;
+  for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
+  for (const c of counters) c.out.textContent = (r[c.field] || 0) + "回";
+  const w = $("weight"), m = $("memo");
+  if (document.activeElement !== w) w.value = r.weight || "";
+  if (document.activeElement !== m) m.value = r.memo || "";
+  const last = lastWeightBefore(cur);
+  let note = "週2回くらい、同じ時間に量ると比べやすいです。";
+  if (last && r.weight) {
+    const diff = r.weight - logs[last].weight;
+    note = "前回 " + label(last) + " の " + logs[last].weight + "g から " + (diff >= 0 ? "+" : "") + diff + "g";
+    if (diff < 0) note += "。減っています。続くときは病院で相談します。";
+  } else if (last) {
+    note = "前回 " + label(last) + "：" + logs[last].weight + "g";
+  }
+  $("weightNote").textContent = note;
+  const items = alertsFor(cur);
+  $("alertBox").hidden = !items.length;
+  $("alertList").replaceChildren(...items.map(i => el("li", null, i)));
+  const days = Math.round((parse(t) - parse(OKAERI)) / 86400000) + 1;
+  $("since").textContent = days >= 1 ? "うちに来て" + days + "日目" : "";
+}
+function setLog(date, patch) {
+  logs[date] = Object.assign({}, logs[date], patch);
+  save(K_LOGS, logs);
+  renderToday();
+  renderHistory();
+  queueLogWrite(date);
+}
+function queueLogWrite(date) {
+  if (!db || !sharedLogs || !canWrite) return;
+  clearTimeout(logTimers.get(date));
+  logTimers.set(date, setTimeout(() => {
+    logTimers.delete(date);
+    const data = JSON.parse(JSON.stringify(logs[date] || {}));
+    const next = (logChains.get(date) || Promise.resolve())
+      .then(() => db.doc("logs/" + date).set(data))
+      .catch(onWriteFail);
+    logChains.set(date, next);
+  }, 600));
+}
+function summaryText(date) {
+  const r = logs[date] || {};
+  const name = (opts, v) => { const o = opts.find(x => x[0] === v); return o ? o[1] : "―"; };
+  const lines = ["【子猫の記録 " + label(date) + "】"];
+  lines.push("ごはん：" + MEALS.map(([k, n]) => n + " " + name(MEAL_OPTS, r[k])).join("／"));
+  lines.push("おしっこ " + (r.pee || 0) + "回・うんち " + (r.poop || 0) + "回" + (r.poopState ? "（" + name(POOP_OPTS, r.poopState) + "）" : ""));
+  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + name(WATER_OPTS, r.water) + "　吐いた：" + (r.vomit || 0) + "回");
+  if (r.weight) lines.push("体重：" + r.weight + "g");
+  if (r.memo) lines.push("メモ：" + r.memo);
+  return lines.join("\n");
+}
+function copySummary() {
+  const text = summaryText(cur);
+  const ok = () => { $("copyNote").textContent = "コピーしました。LINEに貼り付けてください。"; $("copyFallback").hidden = true; };
+  const fallback = () => {
+    const ta = $("copyFallback");
+    ta.value = text;
+    ta.hidden = false;
+    ta.focus();
+    ta.select();
+    $("copyNote").textContent = "自動でコピーできませんでした。下の文字を長押ししてコピーしてください。";
+  };
+  try { navigator.clipboard.writeText(text).then(ok, fallback); } catch (e) { fallback(); }
+}
 
-function build() {
-  for (const [key, list] of Object.entries(LISTS)) {
-    const ul = document.getElementById("l-" + key);
-    for (const [id, name, tag, price, detail] of list.items) {
-      const li = document.createElement("li");
-      const label = document.createElement("label");
-      label.className = "item";
-      const box = document.createElement("input");
+// ---- きろく ----
+function hasData(r) {
+  return r && Object.entries(r).some(([k, v]) => v !== "" && v != null && v !== 0);
+}
+function renderHistory() {
+  const ul = $("days");
+  const dates = Object.keys(logs).filter(d => hasData(logs[d])).sort().reverse();
+  ul.replaceChildren();
+  if (!dates.length) ul.append(el("li", "hint", "まだ記録がありません。「きょう」から記録できます。"));
+  for (const d of dates) {
+    const r = logs[d];
+    const li = el("li");
+    const b = el("button", "day-btn");
+    b.type = "button";
+    b.append(el("span", "day-date", label(d)));
+    const chips = el("span", "chips");
+    const add = (t, bad) => chips.append(el("span", bad ? "chip bad" : "chip", t));
+    const ms = MEALS.map(m => r[m[0]]).filter(Boolean);
+    if (ms.length) {
+      const c = v => ms.filter(x => x === v).length;
+      const parts = [["完食", c("ok")], ["残した", c("half")], ["食べない", c("no")]].filter(p => p[1]);
+      add("ごはん " + parts.map(p => p[0] + p[1]).join("・"), c("no") > 0);
+    }
+    if (r.pee || r.poop) add("尿" + (r.pee || 0) + " 便" + (r.poop || 0));
+    if (r.poopState && r.poopState !== "normal") add(POOP_OPTS.find(o => o[0] === r.poopState)[1], true);
+    if (r.energy) add(ENERGY_OPTS.find(o => o[0] === r.energy)[1], r.energy === "low");
+    if (r.vomit) add("吐いた" + r.vomit, true);
+    if (r.weight) add(r.weight + "g");
+    if (r.memo) add("メモ：" + (r.memo.length > 14 ? r.memo.slice(0, 14) + "…" : r.memo));
+    b.append(chips);
+    b.addEventListener("click", () => { cur = d; renderToday(); showTab("today"); });
+    li.append(b);
+    ul.append(li);
+  }
+  renderChart();
+}
+function renderChart() {
+  const pts = Object.keys(logs).filter(d => logs[d].weight > 0).sort().map(d => ({ d, t: parse(d).getTime(), w: logs[d].weight }));
+  const box = $("chart");
+  if (pts.length < 2) {
+    box.replaceChildren(el("p", "hint", pts.length ? "体重をもう1回記録すると、グラフが出ます。" : "体重を2回以上記録すると、グラフが出ます。"));
+    return;
+  }
+  const W = 320, H = 170, L = 44, R = 16, T = 22, B = 26;
+  const ws = pts.map(p => p.w);
+  const lo = Math.floor((Math.min(...ws) - 30) / 100) * 100;
+  const hi = Math.ceil((Math.max(...ws) + 30) / 100) * 100;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
+  const x = t => L + (t - t0) / (t1 - t0) * (W - L - R);
+  const y = w => T + (hi - w) / (hi - lo) * (H - T - B);
+  const step = (hi - lo) / 100 > 4 ? Math.ceil((hi - lo) / 400) * 100 : 100;
+  let s = "";
+  for (let v = lo; v <= hi; v += step) s += '<line class="grid" x1="' + L + '" x2="' + (W - R) + '" y1="' + y(v) + '" y2="' + y(v) + '"/><text x="' + (L - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + v + "</text>";
+  const line = pts.map(p => x(p.t).toFixed(1) + "," + y(p.w).toFixed(1)).join(" ");
+  s += '<polygon class="area" points="' + x(t0) + "," + y(lo) + " " + line + " " + x(t1) + "," + y(lo) + '"/>';
+  s += '<polyline class="line" points="' + line + '"/>';
+  pts.forEach((p, i) => { s += '<circle class="dot' + (i === pts.length - 1 ? " last" : "") + '" cx="' + x(p.t) + '" cy="' + y(p.w) + '" r="4"/>'; });
+  const lp = pts[pts.length - 1];
+  s += '<text class="val" x="' + x(lp.t) + '" y="' + (y(lp.w) - 9) + '" text-anchor="end">' + lp.w + "g</text>";
+  const md = d => { const z = parse(d); return (z.getMonth() + 1) + "/" + z.getDate(); };
+  s += '<text x="' + L + '" y="' + (H - 6) + '">' + md(pts[0].d) + '</text><text x="' + (W - R) + '" y="' + (H - 6) + '" text-anchor="end">' + md(lp.d) + "</text>";
+  box.innerHTML = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="体重の変化。最新は' + lp.w + 'グラム">' + s + "</svg>";
+}
+
+// ---- 準備 ----
+const checks = new Map(), heads = new Map();
+function renderPicks(list) {
+  const box = el("details", "picks");
+  box.append(el("summary", null, "おすすめ商品（" + list.length + "）"));
+  for (const [name, why, query] of list) {
+    const p = el("div", "pick");
+    const links = el("span", "pick-links");
+    const q = encodeURIComponent(query);
+    for (const [t, href] of [["Amazonで探す", "https://www.amazon.co.jp/s?k=" + q], ["楽天で探す", "https://search.rakuten.co.jp/search/mall/" + q + "/"]]) {
+      const a = el("a", null, t);
+      a.href = href;
+      a.target = "_blank";
+      a.rel = "noopener";
+      links.append(a);
+    }
+    p.append(el("span", "pick-name", name), el("span", "pick-why", why), links);
+    box.append(p);
+  }
+  return box;
+}
+function buildPrep() {
+  for (const [key, title] of SECTIONS) {
+    const sec = el("details", "sec");
+    const sum = el("summary", null, title);
+    const count = el("small");
+    sum.append(count);
+    heads.set(key, count);
+    const ul = el("ul", "list");
+    for (const [id, name, tag, price, detail] of LISTS[key].items) {
+      const li = el("li");
+      const lab = el("label", "item");
+      const box = el("input");
       box.type = "checkbox";
       box.id = "c-" + id;
-      box.addEventListener("change", () => toggle(id, box.checked));
-      const body = document.createElement("span");
-      const head = document.createElement("span");
-      head.className = "item-head";
-      const n = document.createElement("span");
-      n.className = "item-name";
-      n.textContent = name;
-      head.append(n);
-      if (tag !== "must" || ["away", "goods", "room"].includes(key)) {
-        const t = document.createElement("span");
-        t.className = "tag " + tag;
-        t.textContent = TAG[tag];
-        head.append(t);
-      }
-      if (price) {
-        const p = document.createElement("span");
-        p.className = "price";
-        p.textContent = price;
-        head.append(p);
-      }
+      box.addEventListener("change", () => setCheck(id, box.checked));
+      const body = el("span");
+      const head = el("span", "item-head");
+      head.append(el("span", "item-name", name));
+      if (tag !== "must" || ["away", "goods", "room"].includes(key)) head.append(el("span", "tag " + tag, TAG[tag]));
+      if (price) head.append(el("span", "price", price));
       body.append(head);
-      if (detail) {
-        const d = document.createElement("span");
-        d.className = "item-detail";
-        d.textContent = detail;
-        body.append(d);
-      }
-      label.append(box, body);
-      li.append(label);
+      if (detail) body.append(el("span", "item-detail", detail));
+      lab.append(box, body);
+      li.append(lab);
       if (PICKS[id]) li.append(renderPicks(PICKS[id]));
       ul.append(li);
       checks.set(id, { li, box });
     }
+    sec.append(sum, ul);
+    $("secs").append(sec);
   }
+  $("onlyOpen").addEventListener("change", e => document.body.classList.toggle("only-open", e.target.checked));
 }
-
-function paint() {
+function renderPrep() {
   for (const [id, c] of checks) {
     const on = done.has(id);
     c.box.checked = on;
     c.li.classList.toggle("done", on);
   }
-  const total = all.length;
   const n = all.filter(i => done.has(i[0])).length;
-  document.getElementById("progNum").textContent = n + " / " + total;
-  document.getElementById("progFill").style.width = (total ? n / total * 100 : 0) + "%";
-  for (const [key, list] of Object.entries(LISTS)) {
-    const h = document.getElementById("h-" + (key === "away" ? "rusu" : key));
-    const c = list.items.filter(i => done.has(i[0])).length;
-    h.textContent = list.head;
-    const s = document.createElement("small");
-    s.textContent = c + " / " + list.items.length;
-    h.append(s);
+  $("progNum").textContent = n + " / " + all.length;
+  $("progFill").style.width = (n / all.length * 100) + "%";
+  for (const [key] of SECTIONS) {
+    const items = LISTS[key].items;
+    heads.get(key).textContent = items.filter(i => done.has(i[0])).length + " / " + items.length;
   }
 }
-
-function toggle(id, on) {
+function setCheck(id, on) {
   if (on) done.add(id); else done.delete(id);
-  persistLocal();
-  paint();
+  save(K_CHECKS, [...done]);
+  renderPrep();
+  if (!db || !sharedChecks || !canWrite) return;
+  const next = (checkChains.get(id) || Promise.resolve()).then(() => {
+    const ref = db.doc("checks/" + id);
+    return on ? ref.set({ done: true }) : ref.delete();
+  }).catch(onWriteFail);
+  checkChains.set(id, next);
 }
 
-build();
-paint();
-document.getElementById("onlyOpen").addEventListener("change", e => {
-  document.body.classList.toggle("only-open", e.target.checked);
-});
-if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) {
-  document.getElementById("install").hidden = true;
+// ---- タブ ----
+function showTab(name) {
+  for (const b of document.querySelectorAll(".tabbar button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
+  for (const t of ["today", "history", "prep", "guide"]) $("tab-" + t).hidden = t !== name;
+  save(K_TAB, name);
+  window.scrollTo(0, 0);
 }
+
+// ---- 共有の保存（Claude版のみ） ----
+async function connect() {
+  if (!window.claude || !window.claude.use) return;
+  db = await window.claude.use("db");
+  if (!db) return;
+  const user = await window.claude.use("user");
+  const can = user && user.can ? await user.can("data.write") : null;
+  if (can === false) canWrite = false;
+  let confirmed = false;
+  const timer = setTimeout(() => {
+    if (!confirmed) setSave("保存先につながっていません。この端末に保存しています。");
+  }, 10000);
+  const settle = () => {
+    confirmed = true;
+    clearTimeout(timer);
+    setSave(canWrite ? "記録とチェックは保存され、同じページを開いた家族と共有されます。" : "閲覧のみのため、この端末だけに保存しています。");
+  };
+  const fail = () => {
+    clearTimeout(timer);
+    sharedChecks = sharedLogs = false;
+    setSave("保存先につながらないため、この端末に保存しています。");
+  };
+  db.collection("checks").limit(1000).onSnapshot(snap => {
+    if (snap.metadata.fromCache && !sharedChecks) return;
+    sharedChecks = true;
+    if (!snap.metadata.fromCache) settle();
+    if (!canWrite) return;
+    done = new Set(snap.docs.filter(d => d.exists).map(d => d.id));
+    save(K_CHECKS, [...done]);
+    renderPrep();
+  }, fail);
+  db.collection("logs").limit(1000).onSnapshot(snap => {
+    if (snap.metadata.fromCache && !sharedLogs) return;
+    const first = !sharedLogs;
+    sharedLogs = true;
+    if (!snap.metadata.fromCache) settle();
+    if (!canWrite) return;
+    const next = {};
+    for (const d of snap.docs) if (d.exists) next[d.id] = Object.assign({}, d.data());
+    for (const date of logTimers.keys()) if (logs[date]) next[date] = logs[date];
+    if (first) {
+      // 共有の前にこの端末で付けた記録を、保存先へ送る
+      for (const [date, r] of Object.entries(logs)) if (!next[date] && hasData(r)) { next[date] = r; logs[date] = r; queueLogWrite(date); }
+    }
+    logs = next;
+    save(K_LOGS, logs);
+    renderToday();
+    renderHistory();
+  }, fail);
+}
+
+buildToday();
+buildPrep();
+renderToday();
+renderHistory();
+renderPrep();
+for (const b of document.querySelectorAll(".tabbar button")) b.addEventListener("click", () => showTab(b.dataset.tab));
+const savedTab = load(K_TAB, "today");
+showTab(["today", "history", "prep", "guide"].includes(savedTab) ? savedTab : "today");
+connect();
+
+if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) $("install").hidden = true;
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+
 </script>
 </body>
 </html>
