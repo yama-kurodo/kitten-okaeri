@@ -558,7 +558,7 @@ const checkChains = new Map(), logChains = new Map(), logTimers = new Map();
 
 
 // Claude版で付けたチェックと、最初の記録。各端末に一度だけ足すので、あとで消したものは戻らない
-const BASE = ["a1", "a2", "a3", "a7", "g1", "g2", "g3", "g8", "g9", "g10", "g15"];
+const BASE = ["a1", "a2", "a3", "a7", "g1", "g2", "g3", "g8", "g9", "g10", "g15", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "d10", "d11"];
 const appliedChecks = new Set(load("kitten-base-v1", []));
 const freshChecks = BASE.filter(id => !appliedChecks.has(id));
 if (freshChecks.length) {
