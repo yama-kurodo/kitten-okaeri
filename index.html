@@ -546,6 +546,8 @@ const PICKS = {
 const SECTIONS = [["first", "最初の1週間"], ["away", "留守番の道具"], ["goods", "暮らしの用品"], ["room", "2Fの猫の部屋"], ["friend", "知人に確認"], ["vet", "動物病院"], ["family", "家族で決めること"], ["danger", "危険チェック"]];
 const TAG = { must: "必須", away: "留守番向き", nice: "あると良い" };
 const OKAERI = "2026-11-20";
+const ML_PER_MARK = 10;
+function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
 const MEALS = [["m1", "朝", "7:30"], ["m2", "昼", "13:00 給餌器"], ["m3", "夕", "18:30"], ["m4", "夜", "22:00"]];
 const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
@@ -738,7 +740,7 @@ function buildToday() {
   $("toiletRows").append(eventBlock("pee", "おしっこ"), eventBlock("poop", "うんち"));
   $("bodyRows").append(
     row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
-    row("水", "減った目盛り", counter("water", "水の目盛り", 0.5, "目盛り")),
+    row("水", "1目盛り10ml", counter("water", "水の目盛り", 0.5, "目盛り")),
     row("吐いた", "回数", counter("vomit", "吐いた")),
   );
   $("prevDay").addEventListener("click", () => shiftDay(-1));
@@ -784,7 +786,7 @@ function renderToday() {
   $("nextDay").disabled = cur >= t;
   $("goToday").hidden = cur === t;
   for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
-  for (const c of counters) c.out.textContent = fmt(r[c.field] || 0) + c.unit;
+  for (const c of counters) c.out.textContent = c.field === "water" ? waterText(r.water || 0) : fmt(r[c.field] || 0) + c.unit;
   renderEvents(r);
   const w = $("weight"), m = $("memo");
   if (document.activeElement !== w) w.value = r.weight || "";
@@ -832,7 +834,7 @@ function summaryText(date) {
   const pee = r.pee || [], poop = r.poop || [];
   lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
   lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
-  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + (r.water > 0 ? fmt(r.water) + "目盛り" : "―") + "　吐いた：" + (r.vomit || 0) + "回");
+  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + (r.water > 0 ? waterText(r.water) : "―") + "　吐いた：" + (r.vomit || 0) + "回");
   if (r.weight) lines.push("体重：" + r.weight + "g");
   if (r.memo) lines.push("メモ：" + r.memo);
   return lines.join("\n");
@@ -876,7 +878,7 @@ function renderHistory() {
     if (pee.length || poop.length) add("おしっこ" + pee.length + " うんち" + poop.length);
     for (const s of ["soft", "diarrhea"]) if (poop.some(p => p.s === s)) add(poopLabel(s), true);
     if (r.energy) add(ENERGY_OPTS.find(o => o[0] === r.energy)[1], r.energy === "low");
-    if (r.water > 0) add("水" + fmt(r.water) + "目盛り");
+    if (r.water > 0) add("水" + Math.round(r.water * ML_PER_MARK) + "ml");
     if (r.vomit) add("吐いた" + r.vomit, true);
     if (r.weight) add(r.weight + "g");
     if (r.memo) add("メモ：" + (r.memo.length > 14 ? r.memo.slice(0, 14) + "…" : r.memo));
