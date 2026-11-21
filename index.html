@@ -549,11 +549,10 @@ const OKAERI = "2026-11-20";
 const MEALS = [["m1", "朝", "7:30"], ["m2", "昼", "13:00 給餌器"], ["m3", "夕", "18:30"], ["m4", "夜", "22:00"]];
 const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
-const WATER_OPTS = [["ok", "ふつう"], ["low", "少ない", true], ["much", "多い", true]];
 const ENERGY_OPTS = [["good", "元気"], ["normal", "ふつう"], ["low", "ぐったり", true]];
 const SEED_LOGS = {
   "2026-11-13": { weight: 1300, memo: "お迎え前の検診で1.3kg" },
-  "2026-11-20": { m3: 8, memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
+  "2026-11-20": { m3: 8, water: 2, memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
 };
 const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab";
 const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
@@ -577,6 +576,11 @@ function normalizeLog(r) {
   if (typeof o.pee === "number") o.pee = Array.from({ length: o.pee }, () => "");
   if (typeof o.poop === "number") o.poop = Array.from({ length: o.poop }, () => ({ t: "", s: o.poopState || "" }));
   delete o.poopState;
+  if (typeof o.water === "string") {
+    const w = { ok: "ふつう", low: "少ない", much: "多い" }[o.water];
+    if (w) o.memo = "水：" + w + (o.memo ? "\n" + o.memo : "");
+    delete o.water;
+  }
   return o;
 }
 function normalizeAll(obj) { const out = {}; for (const [d, r] of Object.entries(obj)) out[d] = normalizeLog(r); return out; }
@@ -599,6 +603,12 @@ if (!load("kitten-seed-v1", false)) {
   for (const [d, v] of Object.entries(SEED_LOGS)) if (!logs[d]) logs[d] = Object.assign({}, v);
   save(K_LOGS, logs);
   save("kitten-seed-v1", true);
+}
+if (!load("kitten-fix-v2", false)) {
+  const r = logs["2026-11-20"];
+  if (r && !(r.water > 0)) r.water = 2;
+  save(K_LOGS, logs);
+  save("kitten-fix-v2", true);
 }
 if (!load("kitten-fix-v1", false)) {
   const r = logs["2026-11-20"];
@@ -639,17 +649,18 @@ function seg(field, opts, aria) {
   }
   return box;
 }
-function counter(field, aria) {
+function fmt(n) { return String(Math.round(n * 10) / 10); }
+function counter(field, aria, step = 1, unit = "回") {
   const box = el("div", "counter");
   const minus = el("button", "round", "−");
   const out = el("output");
   const plus = el("button", "round", "＋");
   minus.type = plus.type = "button";
-  minus.setAttribute("aria-label", aria + "を1回減らす");
-  plus.setAttribute("aria-label", aria + "を1回増やす");
-  minus.addEventListener("click", () => setLog(cur, { [field]: Math.max(0, ((logs[cur] || {})[field] || 0) - 1) }));
-  plus.addEventListener("click", () => setLog(cur, { [field]: ((logs[cur] || {})[field] || 0) + 1 }));
-  counters.push({ out, field });
+  minus.setAttribute("aria-label", aria + "を" + fmt(step) + unit + "減らす");
+  plus.setAttribute("aria-label", aria + "を" + fmt(step) + unit + "増やす");
+  minus.addEventListener("click", () => setLog(cur, { [field]: Math.max(0, Math.round((((logs[cur] || {})[field] || 0) - step) * 10) / 10) }));
+  plus.addEventListener("click", () => setLog(cur, { [field]: Math.round((((logs[cur] || {})[field] || 0) + step) * 10) / 10 }));
+  counters.push({ out, field, unit });
   box.append(minus, out, plus);
   return box;
 }
@@ -727,7 +738,7 @@ function buildToday() {
   $("toiletRows").append(eventBlock("pee", "おしっこ"), eventBlock("poop", "うんち"));
   $("bodyRows").append(
     row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
-    row("水", "飲む量", seg("water", WATER_OPTS, "水を飲む量")),
+    row("水", "減った目盛り", counter("water", "水の目盛り", 0.5, "目盛り")),
     row("吐いた", "回数", counter("vomit", "吐いた")),
   );
   $("prevDay").addEventListener("click", () => shiftDay(-1));
@@ -773,7 +784,7 @@ function renderToday() {
   $("nextDay").disabled = cur >= t;
   $("goToday").hidden = cur === t;
   for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
-  for (const c of counters) c.out.textContent = (r[c.field] || 0) + "回";
+  for (const c of counters) c.out.textContent = fmt(r[c.field] || 0) + c.unit;
   renderEvents(r);
   const w = $("weight"), m = $("memo");
   if (document.activeElement !== w) w.value = r.weight || "";
@@ -821,7 +832,7 @@ function summaryText(date) {
   const pee = r.pee || [], poop = r.poop || [];
   lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
   lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
-  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + name(WATER_OPTS, r.water) + "　吐いた：" + (r.vomit || 0) + "回");
+  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + (r.water > 0 ? fmt(r.water) + "目盛り" : "―") + "　吐いた：" + (r.vomit || 0) + "回");
   if (r.weight) lines.push("体重：" + r.weight + "g");
   if (r.memo) lines.push("メモ：" + r.memo);
   return lines.join("\n");
@@ -844,7 +855,7 @@ function copySummary() {
 function hasData(r) {
   if (!r) return false;
   return MEALS.some(([k]) => isSet(r[k])) || (r.pee || []).length > 0 || (r.poop || []).length > 0
-    || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || !!r.water;
+    || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || r.water > 0;
 }
 function renderHistory() {
   const ul = $("days");
@@ -865,6 +876,7 @@ function renderHistory() {
     if (pee.length || poop.length) add("おしっこ" + pee.length + " うんち" + poop.length);
     for (const s of ["soft", "diarrhea"]) if (poop.some(p => p.s === s)) add(poopLabel(s), true);
     if (r.energy) add(ENERGY_OPTS.find(o => o[0] === r.energy)[1], r.energy === "low");
+    if (r.water > 0) add("水" + fmt(r.water) + "目盛り");
     if (r.vomit) add("吐いた" + r.vomit, true);
     if (r.weight) add(r.weight + "g");
     if (r.memo) add("メモ：" + (r.memo.length > 14 ? r.memo.slice(0, 14) + "…" : r.memo));
