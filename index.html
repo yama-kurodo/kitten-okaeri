@@ -578,8 +578,8 @@ const ML_PER_MARK = 10;
 function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
 const MEALS = [["m1", "朝"], ["m2", "昼"], ["m3", "夕"], ["m4", "夜"], ["m5", "夜食"]];
 // あげる量の決まり。from の日から次の決まりまで使う。量を変えても前の日の記録はそのまま
-const DEFAULT_TIMES = { m1: "07:30", m2: "13:00", m3: "18:30", m4: "21:00", m5: "23:30" };
-const DEFAULT_PLANS = [{ from: "2026-11-21", meals: { m1: { wet: 30, dry: 11 }, m2: { wet: 0, dry: 10 }, m3: { wet: 0, dry: 10 }, m4: { wet: 30, dry: 11 }, m5: { wet: 0, dry: 10 } } }];
+const DEFAULT_TIMES = { m1: "07:30", m2: "13:00", m3: "18:30", m4: "19:00", m5: "22:00" };
+const DEFAULT_PLANS = [{ from: "2026-11-21", meals: { m1: { time: "07:30", wet: 30, dry: 11 }, m2: { time: "13:00", wet: 0, dry: 10 }, m3: { time: "18:30", wet: 0, dry: 10 }, m4: { time: "19:00", wet: 30, dry: 11 }, m5: { time: "22:00", wet: 0, dry: 10 } } }];
 const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
 const ENERGY_OPTS = [["good", "元気"], ["normal", "ふつう"], ["low", "ぐったり", true]];
