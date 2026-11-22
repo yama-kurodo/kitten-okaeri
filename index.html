@@ -152,6 +152,8 @@ textarea { resize: vertical; }
 .log-table .bad { color: var(--must); font-weight: 700; }
 .log-table small { display: block; font-size: 11px; color: var(--muted); }
 .log-table small.bad { color: var(--must); }
+.import-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
+.import-preview p { margin: 0; font-size: 14px; }
 .date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
 
 .prog-card { gap: 8px; }
@@ -304,6 +306,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <h2>これまでの記録</h2>
       <p class="hint">表は横にスクロールできます。日付をタップすると、その日の記録を開きます。</p>
       <div class="table-wrap"><table class="log-table" id="logTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>記録を移す</h2>
+      <p class="hint">アプリ版とClaude版のあいだで、記録・チェック・ごはんの量を移せます。移す元で書き出し、移す先で読み込みます。</p>
+      <button class="btn" id="exportBtn" type="button">記録を書き出す（コピー）</button>
+      <p class="hint" id="exportNote" role="status"></p>
+      <textarea id="exportFallback" rows="4" readonly hidden></textarea>
+      <label class="hint" for="importText">書き出した文字を、ここに貼り付けて読み込みます</label>
+      <textarea id="importText" rows="4" placeholder="OKAERI1: から始まる文字を貼り付け"></textarea>
+      <button class="btn" id="importCheck" type="button">内容を確かめる</button>
+      <div class="import-preview" id="importPreview" hidden>
+        <p id="importSummary"></p>
+        <button class="btn" id="importApply" type="button">この内容で読み込む</button>
+        <button class="link" id="importCancel" type="button">やめる</button>
+      </div>
+      <p class="hint" id="importNote" role="status"></p>
     </div>
   </section>
 
@@ -1151,6 +1169,108 @@ function setCheck(id, on) {
   checkChains.set(id, next);
 }
 
+// ---- 記録を移す ----
+const CODE_HEAD = "OKAERI1:";
+function exportCode() {
+  const json = JSON.stringify({ logs, checks: [...done], plans });
+  return CODE_HEAD + btoa(unescape(encodeURIComponent(json)));
+}
+function parseCode(text) {
+  const s = text.replace(/\s+/g, "");
+  const i = s.indexOf(CODE_HEAD);
+  if (i < 0) return null;
+  try {
+    const d = JSON.parse(decodeURIComponent(escape(atob(s.slice(i + CODE_HEAD.length)))));
+    return d && typeof d.logs === "object" ? d : null;
+  } catch (e) { return null; }
+}
+// 同じ日に両方の記録があるときは、消さずに合わせる
+function unionEv(field, a, b) {
+  const key = e => field === "poop" ? (e.t || "") + "|" + (e.s || "") : (e || "");
+  const count = list => { const m = new Map(); for (const e of list) m.set(key(e), (m.get(key(e)) || 0) + 1); return m; };
+  const ca = count(a), cb = count(b), out = [];
+  for (const e of a.concat(b)) {
+    const k = key(e), need = Math.max(ca.get(k) || 0, cb.get(k) || 0);
+    if (out.filter(x => key(x) === k).length < need) out.push(e);
+  }
+  return sortEv(field, out);
+}
+function mergeLog(a, b) {
+  if (!a || !hasData(a)) return Object.assign({}, b);
+  const o = Object.assign({}, a);
+  for (const [k] of MEALS) if (isSet(b[k])) o[k] = b[k];
+  for (const k of ["energy", "water", "vomit", "weight"]) if (isSet(b[k]) && b[k] !== 0) o[k] = b[k];
+  if (b.memo && b.memo !== a.memo) o.memo = !a.memo || b.memo.includes(a.memo) ? b.memo : a.memo.includes(b.memo) ? a.memo : a.memo + "\n" + b.memo;
+  o.pee = unionEv("pee", a.pee || [], b.pee || []);
+  o.poop = unionEv("poop", a.poop || [], b.poop || []);
+  return o;
+}
+let pendingImport = null;
+function buildTransfer() {
+  $("exportBtn").addEventListener("click", () => {
+    const code = exportCode();
+    const ok = () => { $("exportNote").textContent = "コピーしました。移す先の「記録を移す」に貼り付けてください。"; $("exportFallback").hidden = true; };
+    const fallback = () => {
+      const ta = $("exportFallback");
+      ta.value = code;
+      ta.hidden = false;
+      ta.focus();
+      ta.select();
+      $("exportNote").textContent = "自動でコピーできませんでした。下の文字を全部選んでコピーしてください。";
+    };
+    try { navigator.clipboard.writeText(code).then(ok, fallback); } catch (e) { fallback(); }
+  });
+  $("importCheck").addEventListener("click", () => {
+    $("importNote").textContent = "";
+    const d = parseCode($("importText").value);
+    if (!d) {
+      $("importPreview").hidden = true;
+      $("importNote").textContent = "読み込めませんでした。「OKAERI1:」から最後まで、全部貼り付けてください。";
+      return;
+    }
+    const dates = Object.keys(d.logs).filter(x => hasData(normalizeLog(d.logs[x]))).sort();
+    const newChecks = (d.checks || []).filter(id => !done.has(id)).length;
+    const parts = [];
+    parts.push(dates.length ? "記録 " + dates.length + "日分（" + label(dates[0]) + (dates.length > 1 ? "〜" + label(dates[dates.length - 1]) : "") + "）" : "記録なし");
+    parts.push("新しいチェック " + newChecks + "件");
+    if (Array.isArray(d.plans) && d.plans.length) parts.push("ごはんの量と時刻");
+    $("importSummary").textContent = parts.join("、") + "を読み込みます。同じ日の記録は、消さずに合わせます。";
+    pendingImport = d;
+    $("importPreview").hidden = false;
+  });
+  $("importCancel").addEventListener("click", () => { pendingImport = null; $("importPreview").hidden = true; });
+  $("importApply").addEventListener("click", () => {
+    const d = pendingImport;
+    if (!d) return;
+    if (db && !canWrite) { $("importNote").textContent = "閲覧のみのため、読み込めません。"; return; }
+    let n = 0;
+    for (const [date, r] of Object.entries(d.logs)) {
+      const b = normalizeLog(r);
+      if (!hasData(b)) continue;
+      logs[date] = normalizeLog(mergeLog(logs[date], b));
+      queueLogWrite(date);
+      n++;
+    }
+    save(K_LOGS, logs);
+    for (const id of d.checks || []) if (!done.has(id) && checks.has(id)) setCheck(id, true);
+    if (Array.isArray(d.plans) && d.plans.length) {
+      const map = new Map(sortedPlans().map(x => [x.from, x]));
+      for (const x of d.plans) if (x && x.from && x.meals) map.set(x.from, x);
+      plans = [...map.values()];
+      save(K_PLAN, plans);
+      if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
+    }
+    pendingImport = null;
+    $("importPreview").hidden = true;
+    $("importText").value = "";
+    $("importNote").textContent = n + "日分の記録を読み込みました。";
+    renderToday();
+    renderHistory();
+    renderPrep();
+    renderGuide();
+  });
+}
+
 // ---- ガイド ----
 const FLOW = [["07:00", "トイレ掃除、15分遊ぶ"], ["08:45", "ケージに入れて、出かける前の確認"], ["09:00", "留守番。昼休みにカメラで確認", "9:00〜18:00"], ["18:00", "ケージから出す。給餌器、トイレ、水を確認"], ["19:30", "20〜30分しっかり遊ぶ"]];
 function renderGuide() {
@@ -1251,6 +1371,7 @@ async function connect() {
 
 buildToday();
 buildPrep();
+buildTransfer();
 renderGuide();
 renderToday();
 renderHistory();
