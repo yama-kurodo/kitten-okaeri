@@ -72,6 +72,19 @@ main { padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
 .tab { display: grid; gap: 14px; }
 .card { display: grid; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
 .card h2 { font-family: var(--display); font-size: 18px; font-weight: 700; margin: 0; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.meal-total { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--bg); font-size: 14px; font-variant-numeric: tabular-nums; }
+.meal-total b { font-size: 16px; }
+.plan-edit { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
+.plan-edit h3 { margin: 0; font-size: 15px; }
+.plan-table { border-collapse: collapse; width: 100%; }
+.plan-table th, .plan-table td { padding: 4px 4px; text-align: left; font-size: 14px; }
+.plan-table th { font-size: 12px; color: var(--muted); font-weight: 700; }
+.plan-table td:first-child { font-weight: 700; white-space: nowrap; }
+.plan-table input { width: 100%; max-width: 6em; padding: 8px; }
+.plan-table .unit { color: var(--muted); font-size: 13px; }
+.plan-actions { display: flex; align-items: center; gap: 12px; }
+.plan-actions .btn { flex: 1; }
 .hint { margin: 0; font-size: 13px; color: var(--muted); }
 .save-state { margin: 4px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
 
@@ -234,8 +247,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     </div>
 
     <div class="card">
-      <h2>ごはん</h2>
+      <div class="card-head">
+        <h2>ごはん</h2>
+        <button class="link" id="editPlan" type="button">量を変える</button>
+      </div>
+      <div class="plan-edit" id="planEdit" hidden>
+        <h3>1回にあげる量</h3>
+        <table class="plan-table">
+          <thead><tr><th></th><th>ウェット</th><th>ドライ</th></tr></thead>
+          <tbody id="planRows"></tbody>
+        </table>
+        <p class="hint" id="planFrom"></p>
+        <div class="plan-actions">
+          <button class="btn" id="planSave" type="button">この量で保存</button>
+          <button class="link" id="planCancel" type="button">やめる</button>
+        </div>
+      </div>
       <div class="rows" id="mealRows"></div>
+      <p class="meal-total" id="mealTotal"></p>
     </div>
     <div class="card">
       <h2>トイレ</h2>
@@ -552,7 +581,9 @@ const TAG = { must: "必須", away: "留守番向き", nice: "あると良い" }
 const OKAERI = "2026-11-20";
 const ML_PER_MARK = 10;
 function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
-const MEALS = [["m1", "朝", "7:30"], ["m2", "昼", "13:00 給餌器"], ["m3", "夕", "18:30"], ["m4", "夜", "22:00"]];
+const MEALS = [["m1", "朝"], ["m2", "昼"], ["m3", "夕"], ["m4", "夜"], ["m5", "夜食"]];
+// あげる量の決まり。from の日から次の決まりまで使う。量を変えても前の日の記録はそのまま
+const DEFAULT_PLANS = [{ from: "2026-11-21", meals: { m1: { wet: 30, dry: 11 }, m2: { wet: 0, dry: 10 }, m3: { wet: 0, dry: 10 }, m4: { wet: 30, dry: 11 }, m5: { wet: 0, dry: 10 } } }];
 const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
 const ENERGY_OPTS = [["good", "元気"], ["normal", "ふつう"], ["low", "ぐったり", true]];
@@ -560,7 +591,7 @@ const SEED_LOGS = {
   "2026-11-13": { weight: 1300, memo: "お迎え前の検診で1.3kg" },
   "2026-11-20": { m3: 8, water: 2, memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
 };
-const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab";
+const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab", K_PLAN = "kitten-plan-v1";
 const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
 const $ = id => document.getElementById(id);
 
@@ -591,6 +622,30 @@ function normalizeLog(r) {
 }
 function normalizeAll(obj) { const out = {}; for (const [d, r] of Object.entries(obj)) out[d] = normalizeLog(r); return out; }
 let logs = normalizeAll(load(K_LOGS, {}));
+let plans = load(K_PLAN, null) || DEFAULT_PLANS;
+function sortedPlans() { return plans.slice().sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)); }
+function planFor(date) {
+  const ps = sortedPlans();
+  const hit = ps.filter(x => x.from <= date);
+  return hit.length ? hit[hit.length - 1].meals : null;
+}
+function grams(m) { return m ? (m.wet || 0) + (m.dry || 0) : 0; }
+function planText(m) {
+  const parts = [];
+  if (m && m.wet > 0) parts.push("ウェット" + m.wet + "g");
+  if (m && m.dry > 0) parts.push("ドライ" + m.dry + "g");
+  return parts.length ? parts.join("＋") : "なし";
+}
+function totals(date) {
+  const plan = planFor(date) || {}, r = logs[date] || {};
+  let planned = 0, wet = 0, dry = 0, eaten = 0, any = false;
+  for (const [k] of MEALS) {
+    const m = plan[k] || {};
+    planned += grams(m); wet += m.wet || 0; dry += m.dry || 0;
+    if (isSet(r[k])) { any = true; eaten += grams(m) * r[k] / 10; }
+  }
+  return { planned, wet, dry, eaten: Math.round(eaten), any };
+}
 let cur = today();
 let db = null, sharedChecks = false, sharedLogs = false, canWrite = true;
 const checkChains = new Map(), logChains = new Map(), logTimers = new Map();
@@ -739,8 +794,56 @@ function renderEvents(r) {
 }
 function mealLabel(v) { const o = MEAL_OPTS.find(x => x[0] === v); return o ? o[1] : "―"; }
 function poopLabel(v) { const o = POOP_OPTS.find(x => x[0] === v); return o ? o[1] : ""; }
+const mealSubs = new Map();
+function openPlan() {
+  const plan = planFor(cur) || sortedPlans()[0].meals;
+  const tb = $("planRows");
+  tb.replaceChildren();
+  for (const [k, name] of MEALS) {
+    const tr = el("tr");
+    tr.append(el("td", null, name));
+    for (const kind of ["wet", "dry"]) {
+      const td = el("td");
+      const input = el("input");
+      input.type = "number";
+      input.inputMode = "numeric";
+      input.min = "0";
+      input.step = "1";
+      input.id = "plan-" + k + "-" + kind;
+      input.value = (plan[k] || {})[kind] || 0;
+      input.setAttribute("aria-label", name + "の" + (kind === "wet" ? "ウェット" : "ドライ") + "（グラム）");
+      td.append(input, el("span", "unit", " g"));
+      tr.append(td);
+    }
+    tb.append(tr);
+  }
+  $("planFrom").textContent = label(cur) + "から、この量になります。それより前の日の記録はそのままです。";
+  $("planEdit").hidden = false;
+  $("editPlan").hidden = true;
+}
+function savePlan() {
+  const meals = {};
+  for (const [k] of MEALS) {
+    const v = kind => Math.max(0, parseInt($("plan-" + k + "-" + kind).value, 10) || 0);
+    meals[k] = { wet: v("wet"), dry: v("dry") };
+  }
+  plans = sortedPlans().filter(x => x.from !== cur).concat([{ from: cur, meals }]);
+  save(K_PLAN, plans);
+  $("planEdit").hidden = true;
+  $("editPlan").hidden = false;
+  renderToday();
+  renderHistory();
+  if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
+}
 function buildToday() {
-  for (const [k, name, time] of MEALS) $("mealRows").append(row(name, time, seg(k, MEAL_OPTS, name + "ごはん"), true));
+  for (const [k, name] of MEALS) {
+    const r = row(name, " ", seg(k, MEAL_OPTS, name + "ごはん"), true);
+    mealSubs.set(k, r.querySelector("small"));
+    $("mealRows").append(r);
+  }
+  $("editPlan").addEventListener("click", openPlan);
+  $("planCancel").addEventListener("click", () => { $("planEdit").hidden = true; $("editPlan").hidden = false; });
+  $("planSave").addEventListener("click", savePlan);
   $("toiletRows").append(eventBlock("pee", "おしっこ"), eventBlock("poop", "うんち"));
   $("bodyRows").append(
     row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
@@ -790,6 +893,15 @@ function renderToday() {
   $("nextDay").disabled = cur >= t;
   $("goToday").hidden = cur === t;
   for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
+  const plan = planFor(cur);
+  for (const [k] of MEALS) mealSubs.get(k).textContent = plan ? planText(plan[k]) : "";
+  const tt = totals(cur);
+  $("mealTotal").hidden = !plan;
+  $("mealTotal").replaceChildren(
+    document.createTextNode("1日の予定 "), el("b", null, tt.planned + "g"),
+    document.createTextNode("（ウェット" + tt.wet + "g・ドライ" + tt.dry + "g）　食べた量 "),
+    el("b", null, tt.any ? "約" + tt.eaten + "g" : "―"),
+  );
   for (const c of counters) c.out.textContent = c.field === "water" ? waterText(r.water || 0) : fmt(r[c.field] || 0) + c.unit;
   renderEvents(r);
   const w = $("weight"), m = $("memo");
@@ -835,6 +947,8 @@ function summaryText(date) {
   const name = (opts, v) => { const o = opts.find(x => x[0] === v); return o ? o[1] : "―"; };
   const lines = ["【子猫の記録 " + label(date) + "】"];
   lines.push("ごはん：" + MEALS.map(([k, n]) => n + " " + mealLabel(r[k])).join("／"));
+  const tt = totals(date);
+  if (tt.any) lines.push("食べた量：約" + tt.eaten + "g（予定" + tt.planned + "g）");
   const pee = r.pee || [], poop = r.poop || [];
   lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
   lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
@@ -875,7 +989,7 @@ function renderHistory() {
     return;
   }
   const head = el("tr");
-  for (const t of ["日付", "朝", "昼", "夕", "夜", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
+  for (const t of ["日付", ...MEALS.map(m => m[1]), "食べた量", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
   const thead = el("thead");
   thead.append(head);
   const tbody = el("tbody");
@@ -890,6 +1004,12 @@ function renderHistory() {
     first.append(b);
     tr.append(first);
     for (const [k] of MEALS) tr.append(isSet(r[k]) ? el("td", r[k] === 0 ? "bad" : null, mealLabel(r[k])) : none());
+    const tt = totals(d);
+    if (tt.any) {
+      const td = el("td", null, "約" + tt.eaten + "g");
+      td.append(el("small", null, "予定" + tt.planned + "g"));
+      tr.append(td);
+    } else tr.append(none());
     const pee = r.pee || [];
     if (pee.length) {
       const td = el("td", null, pee.length + "回");
@@ -1062,6 +1182,15 @@ async function connect() {
     save(K_CHECKS, [...done]);
     renderPrep();
   }, fail);
+  db.doc("settings/plan").onSnapshot(snap => {
+    if (!snap.exists || snap.metadata.hasPendingWrites) return;
+    const ps = (snap.data() || {}).plans;
+    if (!Array.isArray(ps) || !ps.length) return;
+    plans = ps;
+    save(K_PLAN, plans);
+    renderToday();
+    renderHistory();
+  }, () => {});
   db.collection("logs").limit(1000).onSnapshot(snap => {
     if (snap.metadata.fromCache && !sharedLogs) return;
     const first = !sharedLogs;
