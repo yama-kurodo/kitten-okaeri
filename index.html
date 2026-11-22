@@ -81,7 +81,8 @@ main { padding-block: 12px calc(96px + env(safe-area-inset-bottom, 0px)); }
 .plan-table th, .plan-table td { padding: 4px 4px; text-align: left; font-size: 14px; }
 .plan-table th { font-size: 12px; color: var(--muted); font-weight: 700; }
 .plan-table td:first-child { font-weight: 700; white-space: nowrap; }
-.plan-table input { width: 100%; max-width: 6em; padding: 8px; }
+.plan-table input { width: 100%; max-width: 4.2em; padding: 8px 6px; }
+.plan-table input[type="time"] { max-width: 6.2em; font-variant-numeric: tabular-nums; }
 .plan-table .unit { color: var(--muted); font-size: 13px; }
 .plan-actions { display: flex; align-items: center; gap: 12px; }
 .plan-actions .btn { flex: 1; }
@@ -202,6 +203,8 @@ details.picks > summary { color: var(--accent); cursor: pointer; }
 .tl-axis span:first-child { transform: none; }
 .tl-axis span:last-child { transform: translateX(-100%); }
 .tl-meals span { color: var(--must); font-weight: 700; }
+.tl-dots { position: relative; height: 14px; }
+.tl-dots i { position: absolute; top: 3px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--must); }
 .tl-bar { display: flex; height: 28px; border-radius: 6px; overflow: hidden; font-size: 12px; font-weight: 700; }
 .tl-bar div { display: flex; align-items: center; justify-content: center; }
 .tl-home { background: var(--accent-soft); }
@@ -254,7 +257,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <div class="plan-edit" id="planEdit" hidden>
         <h3>1回にあげる量</h3>
         <table class="plan-table">
-          <thead><tr><th></th><th>ウェット</th><th>ドライ</th></tr></thead>
+          <thead><tr><th></th><th>時刻</th><th>ウェット</th><th>ドライ</th></tr></thead>
           <tbody id="planRows"></tbody>
         </table>
         <p class="hint" id="planFrom"></p>
@@ -333,25 +336,17 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     <details class="sec">
       <summary>1日の流れ</summary>
       <div class="sec-body">
-        <div class="tl" role="img" aria-label="ごはんは7時30分、13時、18時30分、22時。9時から18時は留守番。">
+        <div class="tl" id="flowBar" role="img">
           <div class="tl-axis"><span style="left:0">6時</span><span style="left:16.67%">9時</span><span style="left:66.67%">18時</span><span style="left:100%">24時</span></div>
           <div class="tl-bar">
             <div class="tl-home" style="width:16.67%">在宅</div>
             <div class="tl-away" style="width:50%">留守番</div>
             <div class="tl-home" style="width:33.33%">在宅</div>
           </div>
-          <div class="tl-meals"><span style="left:8.33%">7:30</span><span style="left:38.89%">13:00</span><span style="left:69.44%">18:30</span><span style="left:88.89%">22:00</span></div>
+          <div class="tl-dots" id="flowDots"></div>
         </div>
-        <table class="day">
-          <tr><td>7:00</td><td>トイレ掃除、15分遊ぶ</td></tr>
-          <tr><td>7:30</td><td>朝ごはん</td></tr>
-          <tr><td>8:45</td><td>ケージに入れて、出かける前の確認</td></tr>
-          <tr><td>9:00〜18:00</td><td>留守番。13:00は自動給餌器。昼休みにカメラで確認</td></tr>
-          <tr><td>18:00</td><td>ケージから出す。給餌器、トイレ、水を確認</td></tr>
-          <tr><td>18:30</td><td>夕ごはん</td></tr>
-          <tr><td>19:30</td><td>20〜30分しっかり遊ぶ</td></tr>
-          <tr><td>22:00</td><td>夜ごはん、トイレを確認して就寝</td></tr>
-        </table>
+        <table class="day" id="flowTable"></table>
+        <p class="hint">ごはんの時刻と量は、「きょう」の「量を変える」から変えられます。</p>
       </div>
     </details>
 
@@ -583,6 +578,7 @@ const ML_PER_MARK = 10;
 function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
 const MEALS = [["m1", "朝"], ["m2", "昼"], ["m3", "夕"], ["m4", "夜"], ["m5", "夜食"]];
 // あげる量の決まり。from の日から次の決まりまで使う。量を変えても前の日の記録はそのまま
+const DEFAULT_TIMES = { m1: "07:30", m2: "13:00", m3: "18:30", m4: "21:00", m5: "23:30" };
 const DEFAULT_PLANS = [{ from: "2026-11-21", meals: { m1: { wet: 30, dry: 11 }, m2: { wet: 0, dry: 10 }, m3: { wet: 0, dry: 10 }, m4: { wet: 30, dry: 11 }, m5: { wet: 0, dry: 10 } } }];
 const MEAL_OPTS = [[10, "完食"], [8, "8割"], [5, "半分"], [3, "3割"], [0, "食べない", true]];
 const POOP_OPTS = [["normal", "ふつう"], ["soft", "やわらかい", true], ["diarrhea", "下痢", true]];
@@ -629,6 +625,9 @@ function planFor(date) {
   const hit = ps.filter(x => x.from <= date);
   return hit.length ? hit[hit.length - 1].meals : null;
 }
+function mealTime(plan, k) { return (plan && plan[k] && plan[k].time) || DEFAULT_TIMES[k]; }
+function hm(t) { return t.replace(/^0(\d)/, "$1"); }
+function minutes(t) { const [h, m] = t.split(":").map(Number); return (h < 5 ? h + 24 : h) * 60 + m; }
 function grams(m) { return m ? (m.wet || 0) + (m.dry || 0) : 0; }
 function planText(m) {
   const parts = [];
@@ -802,6 +801,14 @@ function openPlan() {
   for (const [k, name] of MEALS) {
     const tr = el("tr");
     tr.append(el("td", null, name));
+    const ttd = el("td");
+    const time = el("input");
+    time.type = "time";
+    time.id = "plan-" + k + "-time";
+    time.value = mealTime(plan, k);
+    time.setAttribute("aria-label", name + "の時刻");
+    ttd.append(time);
+    tr.append(ttd);
     for (const kind of ["wet", "dry"]) {
       const td = el("td");
       const input = el("input");
@@ -817,7 +824,7 @@ function openPlan() {
     }
     tb.append(tr);
   }
-  $("planFrom").textContent = label(cur) + "から、この量になります。それより前の日の記録はそのままです。";
+  $("planFrom").textContent = label(cur) + "から、この時刻と量になります。それより前の日の記録はそのままです。";
   $("planEdit").hidden = false;
   $("editPlan").hidden = true;
 }
@@ -825,7 +832,7 @@ function savePlan() {
   const meals = {};
   for (const [k] of MEALS) {
     const v = kind => Math.max(0, parseInt($("plan-" + k + "-" + kind).value, 10) || 0);
-    meals[k] = { wet: v("wet"), dry: v("dry") };
+    meals[k] = { time: $("plan-" + k + "-time").value || DEFAULT_TIMES[k], wet: v("wet"), dry: v("dry") };
   }
   plans = sortedPlans().filter(x => x.from !== cur).concat([{ from: cur, meals }]);
   save(K_PLAN, plans);
@@ -833,6 +840,7 @@ function savePlan() {
   $("editPlan").hidden = false;
   renderToday();
   renderHistory();
+  renderGuide();
   if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
 }
 function buildToday() {
@@ -894,7 +902,7 @@ function renderToday() {
   $("goToday").hidden = cur === t;
   for (const s of segs) s.b.setAttribute("aria-pressed", String(r[s.field] === s.v));
   const plan = planFor(cur);
-  for (const [k] of MEALS) mealSubs.get(k).textContent = plan ? planText(plan[k]) : "";
+  for (const [k] of MEALS) mealSubs.get(k).textContent = plan ? hm(mealTime(plan, k)) + "　" + planText(plan[k]) : "";
   const tt = totals(cur);
   $("mealTotal").hidden = !plan;
   $("mealTotal").replaceChildren(
@@ -1143,6 +1151,35 @@ function setCheck(id, on) {
   checkChains.set(id, next);
 }
 
+// ---- ガイド ----
+const FLOW = [["07:00", "トイレ掃除、15分遊ぶ"], ["08:45", "ケージに入れて、出かける前の確認"], ["09:00", "留守番。昼休みにカメラで確認", "9:00〜18:00"], ["18:00", "ケージから出す。給餌器、トイレ、水を確認"], ["19:30", "20〜30分しっかり遊ぶ"]];
+function renderGuide() {
+  const plan = planFor(today()) || sortedPlans()[0].meals;
+  const rows = FLOW.map(([t, text, shown]) => ({ m: minutes(t), time: shown || hm(t), text }));
+  for (const [k, name] of MEALS) {
+    if (!grams(plan[k])) continue;
+    const t = mealTime(plan, k), m = minutes(t);
+    const feeder = m > minutes("09:00") && m < minutes("18:00");
+    rows.push({ m, time: hm(t), text: (name === "夜食" ? name : name + "ごはん") + "（" + (feeder ? "自動給餌器・" : "") + planText(plan[k]) + "）", meal: true });
+  }
+  rows.sort((a, b) => a.m - b.m);
+  rows[rows.length - 1].text += "。トイレを確認して就寝";
+  $("flowTable").replaceChildren(...rows.map(r => {
+    const tr = el("tr");
+    const td = el("td", null, r.text);
+    if (r.meal) td.style.fontWeight = "700";
+    tr.append(el("td", null, r.time), td);
+    return tr;
+  }));
+  const meals = rows.filter(r => r.meal);
+  $("flowDots").replaceChildren(...meals.map(r => {
+    const i = el("i");
+    i.style.left = Math.min(100, Math.max(0, (r.m - 360) / (18 * 60) * 100)) + "%";
+    return i;
+  }));
+  $("flowBar").setAttribute("aria-label", "ごはんは" + meals.map(r => r.time).join("、") + "。9時から18時は留守番。");
+}
+
 // ---- タブ ----
 function showTab(name) {
   for (const b of document.querySelectorAll(".tabbar button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
@@ -1190,6 +1227,7 @@ async function connect() {
     save(K_PLAN, plans);
     renderToday();
     renderHistory();
+    renderGuide();
   }, () => {});
   db.collection("logs").limit(1000).onSnapshot(snap => {
     if (snap.metadata.fromCache && !sharedLogs) return;
@@ -1213,6 +1251,7 @@ async function connect() {
 
 buildToday();
 buildPrep();
+renderGuide();
 renderToday();
 renderHistory();
 renderPrep();
