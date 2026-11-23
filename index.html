@@ -719,7 +719,7 @@ const OKAERI = "2026-11-20";
 const ML_PER_MARK = 10;
 function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
 const WATER_FULL = 400;
-// その日に飲んだ量：朝入れた量 −（翌朝の残り）。前の形（減った目盛り）の日は目盛り×10ml
+// その日に飲んだ量：朝入れた量 − 夜の残り（同じ日）。前の形（減った目盛り）の日は目盛り×10ml
 function waterDrunk(d) {
   const r = logs[d] || {};
   if (r.waterIn > 0 && isSet(r.waterLeft)) return Math.max(0, r.waterIn - r.waterLeft);
@@ -1023,16 +1023,16 @@ function waterBox() {
     lab.append(wrap);
     return { lab, input };
   };
-  const left = mk("waterLeft", "けさの残り（前の日の分）");
-  const fill = mk("waterIn", "けさ入れた量");
+  const fill = mk("waterIn", "朝入れた量");
+  const left = mk("waterLeft", "夜の残り");
   const full = el("button", "full-btn", "満タン " + WATER_FULL);
   full.type = "button";
   full.addEventListener("click", () => setLog(cur, { waterIn: WATER_FULL }));
   fill.lab.querySelector(".water-input").append(full);
   const num = v => { const n = parseInt(v, 10); return isNaN(n) ? "" : Math.max(0, Math.min(WATER_FULL, n)); };
-  left.input.addEventListener("input", e => setLog(prevDay(cur), { waterLeft: num(e.target.value) }));
+  left.input.addEventListener("input", e => setLog(cur, { waterLeft: num(e.target.value) }));
   fill.input.addEventListener("input", e => setLog(cur, { waterIn: num(e.target.value) }));
-  box.append(left.lab, fill.lab, el("p", "hint water-note"));
+  box.append(fill.lab, left.lab, el("p", "hint water-note"));
   return box;
 }
 function buildToday() {
@@ -1103,14 +1103,13 @@ function renderToday() {
     el("b", null, tt.any ? "約" + tt.eaten + "g" : "―"),
   );
   for (const c of counters) c.out.textContent = fmt(r[c.field] || 0) + c.unit;
-  const pd = prevDay(cur), pr = logs[pd] || {};
   const wl = $("waterLeft"), wi = $("waterIn");
-  if (document.activeElement !== wl) wl.value = isSet(pr.waterLeft) ? pr.waterLeft : "";
+  if (document.activeElement !== wl) wl.value = isSet(r.waterLeft) ? r.waterLeft : "";
   if (document.activeElement !== wi) wi.value = isSet(r.waterIn) ? r.waterIn : "";
-  const drunk = waterDrunk(pd);
-  let wn = "朝、水を替えるときに残りを見て入れます。";
-  if (drunk != null) wn = "前の日（" + label(pd) + "）に飲んだ量：約" + drunk + "ml";
-  else if (isSet(pr.waterLeft) && !(pr.waterIn > 0)) wn = "前の日に入れた量が記録されていないので、飲んだ量は出せません。";
+  let wn = "朝に入れた量を付け、夜に残りを見て付けると、飲んだ量が出ます。";
+  if (r.waterIn > 0 && isSet(r.waterLeft)) wn = "この日に飲んだ量：約" + Math.max(0, r.waterIn - r.waterLeft) + "ml";
+  else if (isSet(r.waterLeft)) wn = "朝入れた量がないので、飲んだ量は出せません。";
+  else if (r.waterIn > 0) wn = "夜に残りを付けると、飲んだ量が出ます。";
   document.querySelector(".water-note").textContent = wn;
   renderEvents(r);
   const w = $("weight"), m = $("memo");
@@ -1178,7 +1177,7 @@ function summaryText(date) {
   lines.push("おしっこ " + pee.length + "回" + (pd.length ? "（" + pd.join("、") + "）" : ""));
   lines.push("うんち " + poop.length + "回" + (qd.length ? "（" + qd.join("、") + "）" : ""));
   const dk = waterDrunk(date);
-  const wtext = dk != null ? "約" + dk + "ml" + (r.waterIn > 0 && isSet(r.waterLeft) ? "（入れた" + r.waterIn + "ml→翌朝の残り" + r.waterLeft + "ml）" : "") : r.waterIn > 0 ? "入れた" + r.waterIn + "ml（残りは翌朝）" : "―";
+  const wtext = dk != null ? "約" + dk + "ml" + (r.waterIn > 0 && isSet(r.waterLeft) ? "（入れた" + r.waterIn + "ml→夜の残り" + r.waterLeft + "ml）" : "") : r.waterIn > 0 ? "入れた" + r.waterIn + "ml（夜の残りはまだ）" : "―";
   lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　吐いた：" + (r.vomit || 0) + "回");
   lines.push("水：" + wtext);
   if (r.weight) lines.push("体重：" + r.weight + "g");
