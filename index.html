@@ -147,6 +147,7 @@ textarea { resize: vertical; }
 .log-table th, .log-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: nowrap; }
 .log-table th { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); }
 .log-table th:first-child, .log-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
+.log-table td.meal { white-space: normal; min-width: 7em; max-width: 11em; }
 .log-table td.memo { white-space: normal; min-width: 12em; max-width: 18em; }
 .log-table .none { color: var(--line); }
 .log-table .bad { color: var(--must); font-weight: 700; }
@@ -1198,7 +1199,7 @@ function renderHistory() {
     return;
   }
   const head = el("tr");
-  for (const t of ["日付", ...MEALS.map(m => m[1]), "食べた量", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
+  for (const t of ["日付", "ごはん", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
   const thead = el("thead");
   thead.append(head);
   const tbody = el("tbody");
@@ -1212,11 +1213,16 @@ function renderHistory() {
     b.addEventListener("click", () => { cur = d; renderToday(); showTab("today"); });
     first.append(b);
     tr.append(first);
-    for (const [k] of MEALS) tr.append(isSet(r[k]) ? el("td", r[k] === 0 ? "bad" : null, mealLabel(r[k])) : none());
-    const tt = totals(d);
-    if (tt.any) {
-      const td = el("td", null, "約" + tt.eaten + "g");
-      td.append(el("small", null, "予定" + tt.planned + "g"));
+    // ごはんは1つの欄にまとめ、完食でない回だけを書く
+    const set = MEALS.filter(([k]) => isSet(r[k]));
+    if (set.length) {
+      const odd = set.filter(([k]) => r[k] !== 10);
+      let text;
+      if (!odd.length) text = set.length === MEALS.length ? "完食" : "完食（" + set.map(m => m[1]).join("・") + "）";
+      else text = odd.map(([k, n]) => n + mealLabel(r[k])).join("・") + (odd.length < set.length ? "、ほか完食" : "");
+      const td = el("td", set.some(([k]) => r[k] === 0) ? "bad meal" : "meal", text);
+      const tt = totals(d);
+      if (tt.planned) td.append(el("small", null, "約" + tt.eaten + "g／予定" + tt.planned + "g"));
       tr.append(td);
     } else tr.append(none());
     const pee = r.pee || [];
