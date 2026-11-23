@@ -173,6 +173,12 @@ textarea { resize: vertical; }
 .field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.miles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.miles li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.miles-when { display: block; font-size: 12px; font-weight: 700; color: var(--accent); }
+.miles-text { font-size: 14px; }
+.miles button { min-height: 36px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.miles .has { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .import-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
 .import-preview p { margin: 0; font-size: 14px; }
 .date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -260,33 +266,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     <div class="card" id="schedCard">
       <div class="card-head">
         <h2>次の予定</h2>
-        <button class="link" id="schedToggle" type="button">一覧・追加</button>
+        <button class="link" id="schedToggle" type="button">予定を見る・入れる</button>
       </div>
       <ul class="sched" id="schedNext"></ul>
-      <div class="sched-all" id="schedAll" hidden>
-        <h3>すべての予定</h3>
-        <ul class="sched" id="schedList"></ul>
-        <div class="sched-form">
-          <h3>予定を追加</h3>
-          <div class="preset-chips" id="schedPresets"></div>
-          <label class="field">内容<input type="text" id="schedTitle" placeholder="例 健康診断"></label>
-          <div class="field-row">
-            <label class="field">日付<input type="date" id="schedDate"></label>
-            <label class="field">くり返し
-              <select id="schedEvery">
-                <option value="0">なし</option>
-                <option value="7">毎週</option>
-                <option value="14">2週間ごと</option>
-                <option value="30">毎月（30日ごと）</option>
-                <option value="90">3か月ごと</option>
-                <option value="365">毎年</option>
-              </select>
-            </label>
-          </div>
-          <button class="btn" id="schedAdd" type="button">予定を追加</button>
-          <p class="hint" id="schedNote" role="status"></p>
-        </div>
-      </div>
     </div>
 
     <div class="datebar">
@@ -371,16 +353,52 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     </div>
       </section>
 
-  <section class="tab" id="tab-prep" aria-label="準備" hidden>
+  <section class="tab" id="tab-prep" aria-label="予定" hidden>
+    <div class="card" id="schedAllCard">
+      <h2>予定</h2>
+    <ul class="sched" id="schedList"></ul>
+    <div class="sched-form">
+      <h3>予定を追加</h3>
+      <div class="preset-chips" id="schedPresets"></div>
+      <label class="field">内容<input type="text" id="schedTitle" placeholder="例 健康診断"></label>
+      <div class="field-row">
+        <label class="field">日付<input type="date" id="schedDate"></label>
+        <label class="field">くり返し
+          <select id="schedEvery">
+            <option value="0">なし</option>
+            <option value="7">毎週</option>
+            <option value="14">2週間ごと</option>
+            <option value="30">毎月（30日ごと）</option>
+            <option value="90">3か月ごと</option>
+            <option value="365">毎年</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn" id="schedAdd" type="button">予定を追加</button>
+      <p class="hint" id="schedNote" role="status"></p>
+    </div>
+    </div>
+
+    <div class="card">
+      <h2>成長に合わせた目安</h2>
+      <p class="hint">月齢はおおよその目安です。ワクチンや手術の時期は、病院の指示に合わせます。「予定に入れる」を押すと、上の追加欄に内容が入ります。</p>
+      <ul class="miles" id="miles"></ul>
+    </div>
+
+    <details class="sec" id="prepSec">
+      <summary>準備のチェック <small id="prepCount"></small></summary>
+      <div class="sec-body">
     <div class="card prog-card">
       <div class="prog-row">
         <span class="prog-num" id="progNum">0 / 0</span>
         <div class="prog" aria-hidden="true"><i id="progFill"></i></div>
       </div>
-      <label class="toggle"><input type="checkbox" id="onlyOpen">残りだけ表示</label>
+      <label class="toggle"><input type="checkbox" id="onlyOpen" checked>残りだけ表示</label>
     </div>
-    <div id="secs" class="tab"></div>
-    <p class="hint">おすすめ商品は2026年11月に通販サイトや比較記事で調べたものです。サイズ、在庫、価格は買う前に確認してください。</p>
+        <div id="secs" class="tab"></div>
+        <p class="hint">おすすめ商品は2026年11月に通販サイトや比較記事で調べたものです。サイズ、在庫、価格は買う前に確認してください。</p>
+      </div>
+    </details>
   </section>
 
   <section class="tab" id="tab-guide" aria-label="ガイド" hidden>
@@ -488,7 +506,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 <nav class="tabbar" aria-label="画面の切り替え" role="tablist">
   <button role="tab" data-tab="today" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>きょう</button>
   <button role="tab" data-tab="history" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16"/><path d="M5 15l4-4 4 3 6-7"/></svg>きろく</button>
-  <button role="tab" data-tab="prep" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 12l3 3 5-6"/></svg>準備</button>
+  <button role="tab" data-tab="prep" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M8 14h3"/></svg>予定</button>
   <button role="tab" data-tab="guide" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5c3-1 6-1 8 1 2-2 5-2 8-1v14c-3-1-6-1-8 1-2-2-5-2-8-1z"/><path d="M12 6v14"/></svg>ガイド</button>
 </nav>
 
@@ -1192,6 +1210,7 @@ function buildPrep() {
     $("secs").append(sec);
   }
   $("onlyOpen").addEventListener("change", e => document.body.classList.toggle("only-open", e.target.checked));
+  document.body.classList.toggle("only-open", $("onlyOpen").checked);
 }
 function renderPrep() {
   for (const [id, c] of checks) {
@@ -1206,6 +1225,7 @@ function renderPrep() {
     const items = LISTS[key].items;
     heads.get(key).textContent = items.filter(i => done.has(i[0])).length + " / " + items.length;
   }
+  $("prepCount").textContent = n + " / " + all.length;
 }
 function setCheck(id, on) {
   if (on) done.add(id); else done.delete(id);
@@ -1221,6 +1241,38 @@ function setCheck(id, on) {
 
 // ---- 予定 ----
 const PRESETS = [["健康診断", 0], ["ワクチン", 0], ["猫砂の全交換", 30], ["トイレの丸洗い", 30], ["爪切り", 14], ["ノミ・ダニの薬", 30]];
+const MILES = [
+  ["生後4か月ごろ", "ごはんを1日4回に（夜食をやめて夜に足す）", 0],
+  ["病院の指示どおり", "2回目・3回目のワクチン", 0],
+  ["生後5〜6か月", "ケージから部屋でのひとり時間へ", 0],
+  ["生後6か月ごろ", "避妊・去勢手術の相談", 0],
+  ["生後6か月ごろ", "ごはんを1日3回に", 0],
+  ["1歳ごろ", "成猫用フードに切り替え", 0],
+  ["1歳から毎年", "健康診断とワクチン", 365],
+  ["毎月", "ノミ・ダニの薬", 30],
+];
+function renderMiles() {
+  $("miles").replaceChildren(...MILES.map(([when, text, every]) => {
+    const li = el("li");
+    const left = el("div");
+    left.append(el("span", "miles-when", when), el("span", "miles-text", text));
+    li.append(left);
+    const has = schedule.find(x => x.title === text);
+    if (has) li.append(el("span", "has", label(has.date) + "に予定あり"));
+    else {
+      const b = el("button", null, "予定に入れる");
+      b.type = "button";
+      b.addEventListener("click", () => {
+        $("schedTitle").value = text;
+        $("schedEvery").value = String(every);
+        $("schedNote").textContent = "日付を選んで「予定を追加」を押してください。";
+        $("schedAllCard").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      li.append(b);
+    }
+    return li;
+  }));
+}
 const EVERY_LABEL = { 7: "毎週", 14: "2週間ごと", 30: "毎月", 90: "3か月ごと", 365: "毎年" };
 function daysUntil(date) { return Math.round((parse(date) - parse(today())) / 86400000); }
 function whenText(date) {
@@ -1279,7 +1331,8 @@ function renderSched() {
   $("schedNext").replaceChildren(...next.map(it => schedItem(it, false)));
   if (!next.length) $("schedNext").append(el("li", "hint", "予定はまだありません。「一覧・追加」から入れられます。"));
   $("schedList").replaceChildren(...schedule.map(it => schedItem(it, true)));
-  if (!schedule.length) $("schedList").append(el("li", "hint", "まだありません。"));
+  if (!schedule.length) $("schedList").append(el("li", "hint", "まだありません。下の欄か「成長に合わせた目安」から入れられます。"));
+  renderMiles();
 }
 function buildSched() {
   $("schedDate").value = today();
@@ -1289,11 +1342,7 @@ function buildSched() {
     b.addEventListener("click", () => { $("schedTitle").value = title; $("schedEvery").value = String(every); });
     $("schedPresets").append(b);
   }
-  $("schedToggle").addEventListener("click", () => {
-    const open = $("schedAll").hidden;
-    $("schedAll").hidden = !open;
-    $("schedToggle").textContent = open ? "閉じる" : "一覧・追加";
-  });
+  $("schedToggle").addEventListener("click", () => showTab("prep"));
   $("schedAdd").addEventListener("click", () => {
     const title = $("schedTitle").value.trim(), date = $("schedDate").value;
     if (!title || !date) { $("schedNote").textContent = "内容と日付を入れてください。"; return; }
