@@ -358,6 +358,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   </section>
 
   <section class="tab" id="tab-history" aria-label="きろく" hidden>
+    <div class="card" id="sendCard" hidden>
+      <h2>家族に届ける</h2>
+      <p class="hint">このスマホで付けた記録を、家族のアプリに届けます。</p>
+      <button class="btn" id="sendBtn" type="button">記録をクロに送る（コピー）</button>
+      <p class="hint" id="sendNote" role="status">押したあと、スマホのクロに貼り付けて「反映して」と送ってください。</p>
+      <textarea id="sendFallback" rows="4" readonly hidden></textarea>
+    </div>
     <div class="card" id="familyCard">
       <h2>家族の記録</h2>
       <p class="hint" id="familyStatus">合言葉を入れると、Claude版で付けた最新の記録がこのアプリに出ます。</p>
@@ -530,6 +537,14 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       </div>
     </details>
 
+    <details class="sec" id="recorderSec">
+      <summary>記録係の設定</summary>
+      <div class="sec-body">
+        <p>記録を付ける人のスマホだけ、ここをオンにします。家族は見るだけなので、オフのままにしてください。</p>
+        <label class="toggle"><input type="checkbox" id="recorderBox">このスマホで記録を付ける（記録係）</label>
+        <p class="hint">オンにすると「きろく」に「家族に届ける」が出て、家族の記録の読み込みは止まります。</p>
+      </div>
+    </details>
     <details class="sec" id="install">
       <summary>ホーム画面に追加</summary>
       <div class="sec-body">
@@ -1733,8 +1748,8 @@ async function loadFamily(pass, fromForm) {
     familyUI(false, fromForm ? "合言葉が違います。もう一度入れてください。" : "合言葉が変わったようです。新しい合言葉を入れてください。");
     return;
   }
-  for (const [date, r] of Object.entries(d.logs || {})) logs[date] = normalizeLog(r);
-  if (Array.isArray(d.checks)) done = new Set(d.checks);
+  for (const [date, r] of Object.entries(d.logs || {})) logs[date] = normalizeLog(mergeLog(logs[date], normalizeLog(r)));
+  if (Array.isArray(d.checks)) for (const id of d.checks) done.add(id);
   if (Array.isArray(d.plans) && d.plans.length) plans = fixPlans(d.plans);
   if (Array.isArray(d.schedule)) { schedule = d.schedule; save(K_SCHED, schedule); renderSched(); }
   save(K_LOGS, logs);
@@ -1756,8 +1771,30 @@ $("familyGo").addEventListener("click", () => {
   loadFamily(pass, true);
 });
 $("familyChange").addEventListener("click", () => { familyUI(false, "新しい合言葉を入れてください。"); $("familyPass").value = ""; });
+const K_RECORDER = "kitten-recorder";
+function applyRecorder() {
+  const on = load(K_RECORDER, false);
+  $("recorderBox").checked = on;
+  $("familyCard").hidden = on;
+  $("sendCard").hidden = !on;
+}
+$("recorderBox").addEventListener("change", e => { save(K_RECORDER, e.target.checked); applyRecorder(); if (!e.target.checked && load(K_FAMILY, "")) loadFamily(load(K_FAMILY, ""), false); });
+$("sendBtn").addEventListener("click", () => {
+  const code = exportCode();
+  const ok = () => { $("sendNote").textContent = "コピーしました。スマホのクロに貼り付けて「反映して」と送ってください。"; $("sendFallback").hidden = true; };
+  const fallback = () => {
+    const ta = $("sendFallback");
+    ta.value = code;
+    ta.hidden = false;
+    ta.focus();
+    ta.select();
+    $("sendNote").textContent = "自動でコピーできませんでした。下の文字を全部選んでコピーしてください。";
+  };
+  try { navigator.clipboard.writeText(code).then(ok, fallback); } catch (e) { fallback(); }
+});
+applyRecorder();
 const savedPass = load(K_FAMILY, "");
-if (savedPass) loadFamily(savedPass, false);
+if (savedPass && !load(K_RECORDER, false)) loadFamily(savedPass, false);
 if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) $("install").hidden = true;
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 
