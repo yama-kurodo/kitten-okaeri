@@ -205,6 +205,13 @@ textarea { resize: vertical; }
 .cal-items li.over::before { color: var(--must); }
 .cal-items li.hint::before { content: ""; }
 .cal-sel .link { justify-self: start; }
+.water-box { display: grid; gap: 8px; min-width: 0; }
+.water-field { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+.water-input { display: flex; align-items: center; gap: 6px; }
+.water-input input { width: 6em; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; font-variant-numeric: tabular-nums; }
+.water-input .unit { color: var(--muted); font-size: 13px; }
+.full-btn { margin-left: auto; min-height: 36px; padding: 0 10px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.water-note { font-weight: 700; color: var(--accent); }
 .import-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
 .import-preview p { margin: 0; font-size: 14px; }
 .date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -708,6 +715,15 @@ const TAG = { must: "必須", away: "ひとり時間用", nice: "あると良い
 const OKAERI = "2026-11-20";
 const ML_PER_MARK = 10;
 function waterText(v) { return fmt(v) + "目盛り（" + Math.round(v * ML_PER_MARK) + "ml）"; }
+const WATER_FULL = 400;
+// その日に飲んだ量：朝入れた量 −（翌朝の残り）。前の形（減った目盛り）の日は目盛り×10ml
+function waterDrunk(d) {
+  const r = logs[d] || {};
+  if (r.waterIn > 0 && isSet(r.waterLeft)) return Math.max(0, r.waterIn - r.waterLeft);
+  if (r.water > 0) return Math.round(r.water * ML_PER_MARK);
+  return null;
+}
+function prevDay(d) { const x = parse(d); x.setDate(x.getDate() - 1); return ymd(x); }
 const MEALS = [["m1", "朝"], ["m2", "昼"], ["m3", "夕"], ["m4", "夜"], ["m5", "夜食"]];
 // あげる量の決まり。from の日から次の決まりまで使う。量を変えても前の日の記録はそのまま
 const DEFAULT_TIMES = { m1: "07:30", m2: "12:00", m3: "16:00", m4: "19:00", m5: "22:00" };
@@ -988,6 +1004,34 @@ function savePlan() {
   renderGuide();
   if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
 }
+function waterBox() {
+  const box = el("div", "water-box");
+  const mk = (id, text) => {
+    const lab = el("label", "water-field", text);
+    const wrap = el("span", "water-input");
+    const input = el("input");
+    input.type = "number";
+    input.inputMode = "numeric";
+    input.min = "0";
+    input.max = String(WATER_FULL);
+    input.step = "10";
+    input.id = id;
+    wrap.append(input, el("span", "unit", "ml"));
+    lab.append(wrap);
+    return { lab, input };
+  };
+  const left = mk("waterLeft", "けさの残り（前の日の分）");
+  const fill = mk("waterIn", "けさ入れた量");
+  const full = el("button", "full-btn", "満タン " + WATER_FULL);
+  full.type = "button";
+  full.addEventListener("click", () => setLog(cur, { waterIn: WATER_FULL }));
+  fill.lab.querySelector(".water-input").append(full);
+  const num = v => { const n = parseInt(v, 10); return isNaN(n) ? "" : Math.max(0, Math.min(WATER_FULL, n)); };
+  left.input.addEventListener("input", e => setLog(prevDay(cur), { waterLeft: num(e.target.value) }));
+  fill.input.addEventListener("input", e => setLog(cur, { waterIn: num(e.target.value) }));
+  box.append(left.lab, fill.lab, el("p", "hint water-note"));
+  return box;
+}
 function buildToday() {
   for (const [k, name] of MEALS) {
     const r = row(name, " ", seg(k, MEAL_OPTS, name + "ごはん"), true);
@@ -1000,7 +1044,7 @@ function buildToday() {
   $("toiletRows").append(eventBlock("pee", "おしっこ"), eventBlock("poop", "うんち"));
   $("bodyRows").append(
     row("元気", null, seg("energy", ENERGY_OPTS, "元気")),
-    row("水", "1目盛り10ml", counter("water", "水の目盛り", 0.5, "目盛り")),
+    row("水", "最大400ml", waterBox()),
     row("吐いた", "回数", counter("vomit", "吐いた")),
   );
   $("prevDay").addEventListener("click", () => shiftDay(-1));
@@ -1055,7 +1099,16 @@ function renderToday() {
     document.createTextNode("（ウェット" + tt.wet + "g・ドライ" + tt.dry + "g）　食べた量 "),
     el("b", null, tt.any ? "約" + tt.eaten + "g" : "―"),
   );
-  for (const c of counters) c.out.textContent = c.field === "water" ? waterText(r.water || 0) : fmt(r[c.field] || 0) + c.unit;
+  for (const c of counters) c.out.textContent = fmt(r[c.field] || 0) + c.unit;
+  const pd = prevDay(cur), pr = logs[pd] || {};
+  const wl = $("waterLeft"), wi = $("waterIn");
+  if (document.activeElement !== wl) wl.value = isSet(pr.waterLeft) ? pr.waterLeft : "";
+  if (document.activeElement !== wi) wi.value = isSet(r.waterIn) ? r.waterIn : "";
+  const drunk = waterDrunk(pd);
+  let wn = "朝、水を替えるときに残りを見て入れます。";
+  if (drunk != null) wn = "前の日（" + label(pd) + "）に飲んだ量：約" + drunk + "ml";
+  else if (isSet(pr.waterLeft) && !(pr.waterIn > 0)) wn = "前の日に入れた量が記録されていないので、飲んだ量は出せません。";
+  document.querySelector(".water-note").textContent = wn;
   renderEvents(r);
   const w = $("weight"), m = $("memo");
   if (document.activeElement !== w) w.value = r.weight || "";
@@ -1105,7 +1158,10 @@ function summaryText(date) {
   const pee = r.pee || [], poop = r.poop || [];
   lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
   lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
-  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　水：" + (r.water > 0 ? waterText(r.water) : "―") + "　吐いた：" + (r.vomit || 0) + "回");
+  const dk = waterDrunk(date);
+  const wtext = dk != null ? "約" + dk + "ml" + (r.waterIn > 0 && isSet(r.waterLeft) ? "（入れた" + r.waterIn + "ml→翌朝の残り" + r.waterLeft + "ml）" : "") : r.waterIn > 0 ? "入れた" + r.waterIn + "ml（残りは翌朝）" : "―";
+  lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　吐いた：" + (r.vomit || 0) + "回");
+  lines.push("水：" + wtext);
   if (r.weight) lines.push("体重：" + r.weight + "g");
   if (r.memo) lines.push("メモ：" + r.memo);
   return lines.join("\n");
@@ -1128,7 +1184,7 @@ function copySummary() {
 function hasData(r) {
   if (!r) return false;
   return MEALS.some(([k]) => isSet(r[k])) || (r.pee || []).length > 0 || (r.poop || []).length > 0
-    || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || r.water > 0;
+    || r.vomit > 0 || r.weight > 0 || !!r.memo || !!r.energy || r.water > 0 || r.waterIn > 0 || isSet(r.waterLeft);
 }
 function renderHistory() {
   const table = $("logTable");
@@ -1178,7 +1234,10 @@ function renderHistory() {
       });
       tr.append(td);
     } else tr.append(none());
-    tr.append(r.water > 0 ? el("td", null, Math.round(r.water * ML_PER_MARK) + "ml") : none());
+    const dk = waterDrunk(d);
+    if (dk != null) tr.append(el("td", null, dk + "ml"));
+    else if (r.waterIn > 0) { const td = el("td", null, "―"); td.append(el("small", null, "入れた" + r.waterIn + "ml")); tr.append(td); }
+    else tr.append(none());
     tr.append(r.energy ? el("td", r.energy === "low" ? "bad" : null, ENERGY_OPTS.find(o => o[0] === r.energy)[1]) : none());
     tr.append(r.vomit > 0 ? el("td", "bad", r.vomit + "回") : none());
     tr.append(r.weight > 0 ? el("td", null, r.weight + "g") : none());
@@ -1525,7 +1584,8 @@ function mergeLog(a, b) {
   if (!a || !hasData(a)) return Object.assign({}, b);
   const o = Object.assign({}, a);
   for (const [k] of MEALS) if (isSet(b[k])) o[k] = b[k];
-  for (const k of ["energy", "water", "vomit", "weight"]) if (isSet(b[k]) && b[k] !== 0) o[k] = b[k];
+  for (const k of ["energy", "water", "vomit", "weight", "waterIn"]) if (isSet(b[k]) && b[k] !== 0) o[k] = b[k];
+  if (isSet(b.waterLeft)) o.waterLeft = b.waterLeft;
   if (b.memo && b.memo !== a.memo) o.memo = !a.memo || b.memo.includes(a.memo) ? b.memo : a.memo.includes(b.memo) ? a.memo : a.memo + "\n" + b.memo;
   o.pee = unionEv("pee", a.pee || [], b.pee || []);
   o.poop = unionEv("poop", a.poop || [], b.poop || []);
