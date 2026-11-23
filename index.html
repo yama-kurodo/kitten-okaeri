@@ -179,6 +179,32 @@ textarea { resize: vertical; }
 .miles-text { font-size: 14px; }
 .miles button { min-height: 36px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .miles .has { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; }
+.cal-head b { font-family: var(--display); font-size: 18px; }
+.cal-week, .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.cal-week span { font-size: 12px; font-weight: 700; color: var(--muted); }
+.cal-week .sun { color: var(--must); }
+.cal-week .sat { color: var(--away); }
+.cal-grid button { display: grid; justify-items: center; align-content: start; gap: 2px; min-height: 46px; padding: 4px 0; border: 1px solid transparent; border-radius: 8px; background: none; font-size: 14px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.cal-grid button.today { border-color: var(--accent); font-weight: 700; }
+.cal-grid button.sel { background: var(--accent-soft); }
+.cal-grid button.sun { color: var(--must); }
+.cal-grid button.sat { color: var(--away); }
+.cal-dots { display: flex; gap: 2px; height: 6px; }
+.cal-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.cal-dots i.over { background: var(--must); }
+.cal-month { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.cal-list button { display: grid; grid-template-columns: 5.5em minmax(0, 1fr); gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 8px; background: var(--bg); text-align: left; font-size: 14px; cursor: pointer; }
+.cal-list .d { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--accent); }
+.cal-list .over .d { color: var(--must); }
+.cal-list .past { opacity: .55; }
+.cal-sel { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); }
+.cal-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.cal-items li::before { content: "● "; color: var(--accent); }
+.cal-items li.over::before { color: var(--must); }
+.cal-items li.hint::before { content: ""; }
+.cal-sel .link { justify-self: start; }
 .import-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
 .import-preview p { margin: 0; font-size: 14px; }
 .date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -354,6 +380,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       </section>
 
   <section class="tab" id="tab-prep" aria-label="予定" hidden>
+    <div class="card" id="calCard">
+      <div class="cal-head">
+        <button class="round" id="calPrev" type="button" aria-label="前の月">‹</button>
+        <b id="calLabel"></b>
+        <button class="round" id="calNext" type="button" aria-label="次の月">›</button>
+      </div>
+      <div class="cal-week" aria-hidden="true"><span class="sun">日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span class="sat">土</span></div>
+      <div class="cal-grid" id="calGrid"></div>
+      <div class="cal-month">
+        <b id="calMonthLabel"></b>
+        <ul class="cal-list" id="calMonthList"></ul>
+      </div>
+      <div class="cal-sel">
+        <b id="calSelLabel"></b>
+        <ul class="cal-items" id="calItems"></ul>
+        <button class="link" id="calAdd" type="button">この日に予定を入れる</button>
+      </div>
+    </div>
     <div class="card" id="schedAllCard">
       <h2>予定</h2>
     <ul class="sched" id="schedList"></ul>
@@ -1333,8 +1377,70 @@ function renderSched() {
   $("schedList").replaceChildren(...schedule.map(it => schedItem(it, true)));
   if (!schedule.length) $("schedList").append(el("li", "hint", "まだありません。下の欄か「成長に合わせた目安」から入れられます。"));
   renderMiles();
+  renderCal();
+}
+// ---- カレンダー：予定の日（くり返しは先の分も）に点を付ける ----
+let calMonth = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); })();
+let calSel = today();
+function occurrences(it, from, to) {
+  if (!(it.every > 0)) return it.date >= from && it.date <= to ? [it.date] : [];
+  const out = [], d = parse(it.date);
+  while (ymd(d) < from) d.setDate(d.getDate() + it.every);
+  while (ymd(d) <= to) { out.push(ymd(d)); d.setDate(d.getDate() + it.every); }
+  return out;
+}
+function renderCal() {
+  const y = calMonth.getFullYear(), m = calMonth.getMonth();
+  const first = ymd(new Date(y, m, 1)), last = ymd(new Date(y, m + 1, 0));
+  const days = new Date(y, m + 1, 0).getDate(), lead = new Date(y, m, 1).getDay(), t = today();
+  const byDay = new Map();
+  for (const it of schedule) for (const d of occurrences(it, first, last)) {
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(it);
+  }
+  $("calLabel").textContent = y + "年" + (m + 1) + "月";
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(el("span"));
+  for (let n = 1; n <= days; n++) {
+    const d = ymd(new Date(y, m, n)), wd = new Date(y, m, n).getDay(), items = byDay.get(d) || [];
+    const b = el("button", [d === t ? "today" : "", d === calSel ? "sel" : "", wd === 0 ? "sun" : wd === 6 ? "sat" : ""].join(" ").trim());
+    b.type = "button";
+    b.append(document.createTextNode(n));
+    const dots = el("span", "cal-dots");
+    items.slice(0, 3).forEach(it => dots.append(el("i", it.date === d && d < t ? "over" : "")));
+    b.append(dots);
+    b.setAttribute("aria-label", (m + 1) + "月" + n + "日" + (items.length ? "、予定" + items.length + "件" : ""));
+    b.addEventListener("click", () => { calSel = d; renderCal(); });
+    cells.push(b);
+  }
+  $("calGrid").replaceChildren(...cells);
+  // この月の予定をひと目で
+  const rows = [...byDay.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).flatMap(([d, its]) => its.map(it => [d, it]));
+  $("calMonthLabel").textContent = "この月の予定（" + rows.length + "件）";
+  $("calMonthList").replaceChildren(...rows.map(([d, it]) => {
+    const li = el("li");
+    const b = el("button", it.date === d && d < t ? "over" : d < t ? "past" : "");
+    b.type = "button";
+    b.append(el("span", "d", label(d)), el("span", null, it.title + (it.every > 0 ? "（" + (EVERY_LABEL[it.every] || it.every + "日ごと") + "）" : "")));
+    b.addEventListener("click", () => { calSel = d; renderCal(); });
+    li.append(b);
+    return li;
+  }));
+  if (!rows.length) $("calMonthList").append(el("li", "hint", "この月の予定はありません。"));
+  const sel = byDay.get(calSel) || (calSel >= first && calSel <= last ? [] : schedule.filter(it => occurrences(it, calSel, calSel).length));
+  $("calSelLabel").textContent = label(calSel) + (calSel === t ? " きょう" : "");
+  $("calItems").replaceChildren(...sel.map(it => el("li", it.date === calSel && calSel < t ? "over" : "", it.title + (it.every > 0 ? "（" + (EVERY_LABEL[it.every] || it.every + "日ごと") + "）" : ""))));
+  if (!sel.length) $("calItems").append(el("li", "hint", "予定はありません。"));
 }
 function buildSched() {
+  $("calPrev").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1); renderCal(); });
+  $("calNext").addEventListener("click", () => { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1); renderCal(); });
+  $("calAdd").addEventListener("click", () => {
+    $("schedDate").value = calSel;
+    $("schedNote").textContent = label(calSel) + "の予定を入れます。内容を書いて「予定を追加」を押してください。";
+    $("schedAllCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("schedTitle").focus();
+  });
   $("schedDate").value = today();
   for (const [title, every] of PRESETS) {
     const b = el("button", null, title + (every ? "（" + EVERY_LABEL[every] + "）" : ""));
