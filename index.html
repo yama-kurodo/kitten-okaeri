@@ -1843,7 +1843,18 @@ async function loadFamily(pass, fromForm) {
     familyUI(false, fromForm ? "合言葉が違います。もう一度入れてください。" : "合言葉が変わったようです。新しい合言葉を入れてください。");
     return;
   }
-  for (const [date, r] of Object.entries(d.logs || {})) logs[date] = normalizeLog(mergeLog(logs[date], normalizeLog(r)));
+  // 前回読み込んだ形のままなら（この端末で書き足していなければ）記録係の形に置きかえる。消したメモなども家族に届く
+  const K_FAMLAST = "kitten-family-last";
+  const lastFam = load(K_FAMLAST, null);
+  const stable = v => JSON.stringify(v, (k, x) => x && typeof x === "object" && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort()) : x);
+  const newFam = {};
+  for (const [date, r] of Object.entries(d.logs || {})) {
+    const n = normalizeLog(r), cur = logs[date];
+    newFam[date] = n;
+    const untouched = !lastFam || !cur || !hasData(cur) || (lastFam[date] && stable(cur) === stable(lastFam[date]));
+    logs[date] = untouched ? n : normalizeLog(mergeLog(cur, n));
+  }
+  save(K_FAMLAST, newFam);
   if (Array.isArray(d.checks)) for (const id of d.checks) done.add(id);
   if (Array.isArray(d.plans) && d.plans.length) plans = fixPlans(d.plans);
   if (Array.isArray(d.schedule)) { schedule = d.schedule; save(K_SCHED, schedule); renderSched(); }
