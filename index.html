@@ -155,6 +155,24 @@ textarea { resize: vertical; }
 .family-form { display: flex; gap: 8px; }
 .family-form input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
 .family-form .btn { width: auto; padding: 0 20px; }
+.sched { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.sched li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.sched li.hint { display: block; background: none; padding: 0; }
+.sched-title { font-weight: 700; }
+.sched-when { display: block; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.sched-when b { color: var(--accent); }
+.sched li.over { background: var(--must-soft); }
+.sched li.over .sched-when b { color: var(--must); }
+.sched-btns { display: flex; gap: 6px; }
+.sched-btns button { min-height: 36px; padding: 0 12px; border: 1px solid var(--accent); border-radius: 999px; background: var(--surface); color: var(--accent); font-size: 13px; font-weight: 700; cursor: pointer; }
+.sched-btns button.del { border-color: var(--line); color: var(--muted); }
+.sched-all, .sched-form { display: grid; gap: 10px; }
+.sched-all h3, .sched-form h3 { margin: 6px 0 0; font-size: 15px; }
+.preset-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.preset-chips button { padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-size: 13px; cursor: pointer; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.field input, .field select { width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .import-preview { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; }
 .import-preview p { margin: 0; font-size: 14px; }
 .date-btn { padding: 0; border: 0; background: none; color: var(--accent); font-weight: 700; text-decoration: underline; cursor: pointer; }
@@ -239,6 +257,38 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 <main class="wrap">
   <section class="tab" id="tab-today" aria-label="きょうの記録">
+    <div class="card" id="schedCard">
+      <div class="card-head">
+        <h2>次の予定</h2>
+        <button class="link" id="schedToggle" type="button">一覧・追加</button>
+      </div>
+      <ul class="sched" id="schedNext"></ul>
+      <div class="sched-all" id="schedAll" hidden>
+        <h3>すべての予定</h3>
+        <ul class="sched" id="schedList"></ul>
+        <div class="sched-form">
+          <h3>予定を追加</h3>
+          <div class="preset-chips" id="schedPresets"></div>
+          <label class="field">内容<input type="text" id="schedTitle" placeholder="例 健康診断"></label>
+          <div class="field-row">
+            <label class="field">日付<input type="date" id="schedDate"></label>
+            <label class="field">くり返し
+              <select id="schedEvery">
+                <option value="0">なし</option>
+                <option value="7">毎週</option>
+                <option value="14">2週間ごと</option>
+                <option value="30">毎月（30日ごと）</option>
+                <option value="90">3か月ごと</option>
+                <option value="365">毎年</option>
+              </select>
+            </label>
+          </div>
+          <button class="btn" id="schedAdd" type="button">予定を追加</button>
+          <p class="hint" id="schedNote" role="status"></p>
+        </div>
+      </div>
+    </div>
+
     <div class="datebar">
       <button class="round" id="prevDay" aria-label="前の日">‹</button>
       <div class="date-mid">
@@ -608,7 +658,7 @@ const SEED_LOGS = {
   "2026-11-13": { weight: 1300, memo: "お迎え前の検診で1.3kg" },
   "2026-11-20": { m3: 8, water: 2, memo: "16時にお迎え。18時ごろ2Fの部屋で、ドライとウェットを混ぜて30g、8割ほど食べた。少し遊んだ。" },
 };
-const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab", K_PLAN = "kitten-plan-v1";
+const K_CHECKS = "kitten-checks-v1", K_LOGS = "kitten-logs-v1", K_TAB = "kitten-tab", K_PLAN = "kitten-plan-v1", K_SCHED = "kitten-sched-v1";
 const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
 const $ = id => document.getElementById(id);
 
@@ -652,6 +702,7 @@ function fixPlans(ps) {
   });
 }
 let plans = fixPlans(load(K_PLAN, null) || DEFAULT_PLANS);
+let schedule = load(K_SCHED, []);
 function sortedPlans() { return plans.slice().sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)); }
 function planFor(date) {
   const ps = sortedPlans();
@@ -1184,11 +1235,97 @@ function setCheck(id, on) {
   checkChains.set(id, next);
 }
 
+// ---- 予定 ----
+const PRESETS = [["健康診断", 0], ["ワクチン", 0], ["猫砂の全交換", 30], ["トイレの丸洗い", 30], ["爪切り", 14], ["ノミ・ダニの薬", 30]];
+const EVERY_LABEL = { 7: "毎週", 14: "2週間ごと", 30: "毎月", 90: "3か月ごと", 365: "毎年" };
+function daysUntil(date) { return Math.round((parse(date) - parse(today())) / 86400000); }
+function whenText(date) {
+  const n = daysUntil(date);
+  return n === 0 ? "きょう" : n === 1 ? "あした" : n > 1 ? "あと" + n + "日" : Math.abs(n) + "日過ぎています";
+}
+function saveSched() {
+  schedule.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  save(K_SCHED, schedule);
+  renderSched();
+  if (db && canWrite) db.doc("settings/schedule").set({ items: schedule }).catch(onWriteFail);
+}
+function doneSched(id) {
+  const it = schedule.find(x => x.id === id);
+  if (!it) return;
+  const t = today(), r = logs[t] || {};
+  setLog(t, { memo: (r.memo ? r.memo + "\n" : "") + "済：" + it.title });
+  if (it.every > 0) {
+    const d = parse(t);
+    d.setDate(d.getDate() + it.every);
+    it.date = ymd(d);
+  } else {
+    schedule = schedule.filter(x => x.id !== id);
+  }
+  saveSched();
+}
+function schedItem(it, withDelete) {
+  const li = el("li", daysUntil(it.date) < 0 ? "over" : "");
+  const left = el("div");
+  left.append(el("span", "sched-title", it.title));
+  const when = el("span", "sched-when", label(it.date) + "　");
+  when.append(el("b", null, whenText(it.date)));
+  if (it.every > 0) when.append(document.createTextNode("　" + (EVERY_LABEL[it.every] || it.every + "日ごと")));
+  left.append(when);
+  const btns = el("div", "sched-btns");
+  const ok = el("button", null, "済み");
+  ok.type = "button";
+  ok.setAttribute("aria-label", it.title + "を済みにする");
+  ok.addEventListener("click", () => doneSched(it.id));
+  btns.append(ok);
+  if (withDelete) {
+    const del = el("button", "del", "消す");
+    del.type = "button";
+    del.addEventListener("click", () => {
+      if (del.dataset.armed) { schedule = schedule.filter(x => x.id !== it.id); saveSched(); return; }
+      del.dataset.armed = "1";
+      del.textContent = "本当に消す";
+    });
+    btns.append(del);
+  }
+  li.append(left, btns);
+  return li;
+}
+function renderSched() {
+  const next = schedule.slice(0, 3);
+  $("schedNext").replaceChildren(...next.map(it => schedItem(it, false)));
+  if (!next.length) $("schedNext").append(el("li", "hint", "予定はまだありません。「一覧・追加」から入れられます。"));
+  $("schedList").replaceChildren(...schedule.map(it => schedItem(it, true)));
+  if (!schedule.length) $("schedList").append(el("li", "hint", "まだありません。"));
+}
+function buildSched() {
+  $("schedDate").value = today();
+  for (const [title, every] of PRESETS) {
+    const b = el("button", null, title + (every ? "（" + EVERY_LABEL[every] + "）" : ""));
+    b.type = "button";
+    b.addEventListener("click", () => { $("schedTitle").value = title; $("schedEvery").value = String(every); });
+    $("schedPresets").append(b);
+  }
+  $("schedToggle").addEventListener("click", () => {
+    const open = $("schedAll").hidden;
+    $("schedAll").hidden = !open;
+    $("schedToggle").textContent = open ? "閉じる" : "一覧・追加";
+  });
+  $("schedAdd").addEventListener("click", () => {
+    const title = $("schedTitle").value.trim(), date = $("schedDate").value;
+    if (!title || !date) { $("schedNote").textContent = "内容と日付を入れてください。"; return; }
+    schedule.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), title, date, every: parseInt($("schedEvery").value, 10) || 0 });
+    saveSched();
+    $("schedTitle").value = "";
+    $("schedEvery").value = "0";
+    $("schedNote").textContent = "「" + title + "」を " + label(date) + " に入れました。";
+  });
+}
+
 // ---- 記録を移す ----
 const CODE_HEAD = "OKAERI1:";
 // 書き出しは「OKAERI2:」＋JSON。前の形（OKAERI1: の後ろが base64）も読める
 function exportCode() {
-  return "OKAERI2:" + JSON.stringify({ logs, checks: [...done], plans });
+  return "OKAERI2:" + JSON.stringify({ logs, checks: [...done], plans, schedule });
 }
 let parseError = "";
 function parseCode(text) {
@@ -1269,6 +1406,7 @@ function buildTransfer() {
     parts.push(dates.length ? "記録 " + dates.length + "日分（" + label(dates[0]) + (dates.length > 1 ? "〜" + label(dates[dates.length - 1]) : "") + "）" : "記録なし");
     parts.push("新しいチェック " + newChecks + "件");
     if (Array.isArray(d.plans) && d.plans.length) parts.push("ごはんの量と時刻");
+    if (Array.isArray(d.schedule) && d.schedule.length) parts.push("予定 " + d.schedule.length + "件");
     $("importSummary").textContent = parts.join("、") + "を読み込みます。同じ日の記録は、消さずに合わせます。";
     pendingImport = d;
     $("importPreview").hidden = false;
@@ -1294,6 +1432,12 @@ function buildTransfer() {
       plans = [...map.values()];
       save(K_PLAN, plans);
       if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
+    }
+    if (Array.isArray(d.schedule) && d.schedule.length) {
+      const map = new Map(schedule.map(x => [x.id, x]));
+      for (const x of d.schedule) if (x && x.id && x.title && x.date) map.set(x.id, x);
+      schedule = [...map.values()];
+      saveSched();
     }
     pendingImport = null;
     $("importPreview").hidden = true;
@@ -1366,6 +1510,14 @@ async function connect() {
     save(K_CHECKS, [...done]);
     renderPrep();
   }, fail);
+  db.doc("settings/schedule").onSnapshot(snap => {
+    if (!snap.exists || snap.metadata.hasPendingWrites) return;
+    const items = (snap.data() || {}).items;
+    if (!Array.isArray(items)) return;
+    schedule = items;
+    save(K_SCHED, schedule);
+    renderSched();
+  }, () => {});
   db.doc("settings/plan").onSnapshot(snap => {
     if (!snap.exists || snap.metadata.hasPendingWrites) return;
     const ps = (snap.data() || {}).plans;
@@ -1398,6 +1550,8 @@ async function connect() {
 buildToday();
 buildPrep();
 buildTransfer();
+buildSched();
+renderSched();
 renderGuide();
 renderToday();
 renderHistory();
@@ -1440,6 +1594,7 @@ async function loadFamily(pass, fromForm) {
   for (const [date, r] of Object.entries(d.logs || {})) logs[date] = normalizeLog(r);
   if (Array.isArray(d.checks)) done = new Set(d.checks);
   if (Array.isArray(d.plans) && d.plans.length) plans = fixPlans(d.plans);
+  if (Array.isArray(d.schedule)) { schedule = d.schedule; save(K_SCHED, schedule); renderSched(); }
   save(K_LOGS, logs);
   save(K_CHECKS, [...done]);
   save(K_PLAN, plans);
