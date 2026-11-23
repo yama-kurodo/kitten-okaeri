@@ -148,7 +148,9 @@ textarea { resize: vertical; }
 .log-table th { font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); }
 .log-table th:first-child, .log-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--line); }
 .log-table td.meal { white-space: normal; min-width: 7em; max-width: 11em; }
-.log-table td.memo { white-space: normal; min-width: 12em; max-width: 18em; }
+.log-table tr.has-memo td { border-bottom: 0; padding-bottom: 2px; }
+.log-table tr.memo-row td { position: static; padding-top: 0; box-shadow: none; background: none; white-space: normal; }
+.log-table .memo-text { position: sticky; left: 0; width: min(560px, calc(100vw - 72px)); padding: 6px 10px; border-radius: 8px; background: var(--bg); font-size: 13px; line-height: 1.5; white-space: pre-wrap; color: var(--fg); }
 .log-table .none { color: var(--line); }
 .log-table .bad { color: var(--must); font-weight: 700; }
 .log-table small { display: block; font-size: 11px; color: var(--muted); }
@@ -1215,7 +1217,8 @@ function renderHistory() {
     return;
   }
   const head = el("tr");
-  for (const t of ["日付", "ごはん", "おしっこ", "うんち", "水", "元気", "吐いた", "体重", "メモ"]) head.append(el("th", null, t));
+  const COLS = ["日付", "ごはん", "おしっこ", "うんち", "水", "元気", "体重・吐いた"];
+  for (const t of COLS) head.append(el("th", null, t));
   const thead = el("thead");
   thead.append(head);
   const tbody = el("tbody");
@@ -1258,10 +1261,23 @@ function renderHistory() {
     else if (r.waterIn > 0) { const td = el("td", null, "―"); td.append(el("small", null, "入れた" + r.waterIn + "ml")); tr.append(td); }
     else tr.append(none());
     tr.append(r.energy ? el("td", r.energy === "low" ? "bad" : null, ENERGY_OPTS.find(o => o[0] === r.energy)[1]) : none());
-    tr.append(r.vomit > 0 ? el("td", "bad", r.vomit + "回") : none());
-    tr.append(r.weight > 0 ? el("td", null, r.weight + "g") : none());
-    tr.append(r.memo ? el("td", "memo", r.memo) : none());
+    // 体重と吐いた回数は1つの欄に並べる
+    if (r.weight > 0 || r.vomit > 0) {
+      const td = el("td", null, r.weight > 0 ? r.weight + "g" : "");
+      if (r.vomit > 0) td.append(el("small", "bad", "吐いた" + r.vomit + "回"));
+      tr.append(td);
+    } else tr.append(none());
     tbody.append(tr);
+    // メモはその日の下の行に、横書きで何行かに分けて出す
+    if (r.memo) {
+      tr.classList.add("has-memo");
+      const mr = el("tr", "memo-row");
+      const td = el("td");
+      td.colSpan = COLS.length;
+      td.append(el("div", "memo-text", r.memo));
+      mr.append(td);
+      tbody.append(mr);
+    }
   }
   table.append(thead, tbody);
   renderChart();
