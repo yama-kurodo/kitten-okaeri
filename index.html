@@ -1149,6 +1149,21 @@ function queueLogWrite(date) {
     logChains.set(date, next);
   }, 600));
 }
+function evDetail(field, list) {
+  const out = [];
+  let rest = 0;
+  const restBad = [];
+  for (const e of list) {
+    const t = field === "poop" ? e.t : e;
+    const bad = field === "poop" && (e.s === "soft" || e.s === "diarrhea") ? poopLabel(e.s) : "";
+    if (t) out.push(hm(t) + (bad ? " " + bad : ""));
+    else { rest++; if (bad) restBad.push(bad); }
+  }
+  // 時刻のある回が1つもなければ回数だけで十分なので、気になる状態だけを残す
+  if (rest && out.length) out.push("他" + rest + "回" + (restBad.length ? "（" + restBad.join("・") + "）" : ""));
+  else if (rest && restBad.length) out.push(restBad.join("・"));
+  return out;
+}
 function summaryText(date) {
   const r = logs[date] || {};
   const name = (opts, v) => { const o = opts.find(x => x[0] === v); return o ? o[1] : "―"; };
@@ -1157,8 +1172,9 @@ function summaryText(date) {
   const tt = totals(date);
   if (tt.any) lines.push("食べた量：約" + tt.eaten + "g（予定" + tt.planned + "g）");
   const pee = r.pee || [], poop = r.poop || [];
-  lines.push("おしっこ " + pee.length + "回" + (pee.length ? "（" + pee.map(t => t || "時刻なし").join("、") + "）" : ""));
-  lines.push("うんち " + poop.length + "回" + (poop.length ? "（" + poop.map(p => (p.t || "時刻なし") + (p.s ? " " + poopLabel(p.s) : "")).join("、") + "）" : ""));
+  const pd = evDetail("pee", pee), qd = evDetail("poop", poop);
+  lines.push("おしっこ " + pee.length + "回" + (pd.length ? "（" + pd.join("、") + "）" : ""));
+  lines.push("うんち " + poop.length + "回" + (qd.length ? "（" + qd.join("、") + "）" : ""));
   const dk = waterDrunk(date);
   const wtext = dk != null ? "約" + dk + "ml" + (r.waterIn > 0 && isSet(r.waterLeft) ? "（入れた" + r.waterIn + "ml→翌朝の残り" + r.waterLeft + "ml）" : "") : r.waterIn > 0 ? "入れた" + r.waterIn + "ml（残りは翌朝）" : "―";
   lines.push("元気：" + name(ENERGY_OPTS, r.energy) + "　吐いた：" + (r.vomit || 0) + "回");
@@ -1228,16 +1244,13 @@ function renderHistory() {
     const pee = r.pee || [];
     if (pee.length) {
       const td = el("td", null, pee.length + "回");
-      pee.forEach(t => td.append(el("small", null, t || "時刻なし")));
+      evDetail("pee", pee).forEach(t => td.append(el("small", null, t)));
       tr.append(td);
     } else tr.append(none());
     const poop = r.poop || [];
     if (poop.length) {
       const td = el("td", null, poop.length + "回");
-      poop.forEach(p => {
-        const bad = p.s === "soft" || p.s === "diarrhea";
-        td.append(el("small", bad ? "bad" : null, (p.t || "時刻なし") + (bad ? " " + poopLabel(p.s) : "")));
-      });
+      evDetail("poop", poop).forEach(t => td.append(el("small", /やわらかい|下痢/.test(t) ? "bad" : null, t)));
       tr.append(td);
     } else tr.append(none());
     const dk = waterDrunk(d);
