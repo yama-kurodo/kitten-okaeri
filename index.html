@@ -369,23 +369,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <p class="hint">表は横にスクロールできます。日付をタップすると、その日の記録を開きます。</p>
       <div class="table-wrap"><table class="log-table" id="logTable"></table></div>
     </div>
-    <div class="card">
-      <h2>記録を移す</h2>
-      <p class="hint">アプリ版とClaude版のあいだで、記録・チェック・ごはんの量を移せます。移す元で書き出し、移す先で読み込みます。</p>
-      <button class="btn" id="exportBtn" type="button">記録を書き出す（コピー）</button>
-      <p class="hint" id="exportNote" role="status"></p>
-      <textarea id="exportFallback" rows="4" readonly hidden></textarea>
-      <label class="hint" for="importText">書き出した文字を、ここに貼り付けて読み込みます</label>
-      <textarea id="importText" rows="4" placeholder="OKAERI から始まる文字を貼り付け"></textarea>
-      <button class="btn" id="importCheck" type="button">内容を確かめる</button>
-      <div class="import-preview" id="importPreview" hidden>
-        <p id="importSummary"></p>
-        <button class="btn" id="importApply" type="button">この内容で読み込む</button>
-        <button class="link" id="importCancel" type="button">やめる</button>
-      </div>
-      <p class="hint" id="importNote" role="status"></p>
-    </div>
-  </section>
+      </section>
 
   <section class="tab" id="tab-prep" aria-label="準備" hidden>
     <div class="card prog-card">
@@ -1549,7 +1533,7 @@ async function connect() {
 
 buildToday();
 buildPrep();
-buildTransfer();
+if ($("exportBtn")) buildTransfer();
 buildSched();
 renderSched();
 renderGuide();
