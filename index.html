@@ -314,7 +314,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <p class="hint" id="exportNote" role="status"></p>
       <textarea id="exportFallback" rows="4" readonly hidden></textarea>
       <label class="hint" for="importText">書き出した文字を、ここに貼り付けて読み込みます</label>
-      <textarea id="importText" rows="4" placeholder="OKAERI1: から始まる文字を貼り付け"></textarea>
+      <textarea id="importText" rows="4" placeholder="OKAERI から始まる文字を貼り付け"></textarea>
       <button class="btn" id="importCheck" type="button">内容を確かめる</button>
       <div class="import-preview" id="importPreview" hidden>
         <p id="importSummary"></p>
@@ -1171,18 +1171,36 @@ function setCheck(id, on) {
 
 // ---- 記録を移す ----
 const CODE_HEAD = "OKAERI1:";
+// 書き出しは「OKAERI2:」＋JSON。前の形（OKAERI1: の後ろが base64）も読める
 function exportCode() {
-  const json = JSON.stringify({ logs, checks: [...done], plans });
-  return CODE_HEAD + btoa(unescape(encodeURIComponent(json)));
+  return "OKAERI2:" + JSON.stringify({ logs, checks: [...done], plans });
 }
+let parseError = "";
 function parseCode(text) {
-  const s = text.replace(/\s+/g, "");
-  const i = s.indexOf(CODE_HEAD);
-  if (i < 0) return null;
-  try {
-    const d = JSON.parse(decodeURIComponent(escape(atob(s.slice(i + CODE_HEAD.length)))));
-    return d && typeof d.logs === "object" ? d : null;
-  } catch (e) { return null; }
+  const raw = String(text || "");
+  const len = raw.trim().length;
+  const i = raw.toUpperCase().indexOf("OKAERI");
+  const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+  const ok = d => d && typeof d.logs === "object" ? d : null;
+  if (a >= 0 && b > a) {
+    try { const d = ok(JSON.parse(raw.slice(a, b + 1))); if (d) return d; } catch (e) {}
+  }
+  if (i >= 0) {
+    const after = raw.slice(i).replace(/^OKAERI\s*\d?\s*[:：]?/i, "");
+    const b64 = after.replace(/-/g, "+").replace(/_/g, "/").replace(/[^A-Za-z0-9+/=]/g, "");
+    try {
+      const bin = atob(b64.replace(/=+$/, "") + "===".slice((b64.replace(/=+$/, "").length + 3) % 4));
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      const d = ok(JSON.parse(new TextDecoder().decode(bytes)));
+      if (d) return d;
+    } catch (e) {}
+    parseError = "「OKAERI」は見つかりましたが、途中で切れているか形がくずれています（" + len + "文字）。書き出しをもう一度押して、全部コピーし直してください。";
+    return null;
+  }
+  parseError = len
+    ? "書き出した文字ではないようです（" + len + "文字、先頭「" + raw.trim().slice(0, 12) + "」）。「この日の記録をLINE用にコピー」ではなく、「記録を書き出す」でコピーした文字を貼り付けてください。"
+    : "何も貼り付けられていません。";
+  return null;
 }
 // 同じ日に両方の記録があるときは、消さずに合わせる
 function unionEv(field, a, b) {
@@ -1225,7 +1243,7 @@ function buildTransfer() {
     const d = parseCode($("importText").value);
     if (!d) {
       $("importPreview").hidden = true;
-      $("importNote").textContent = "読み込めませんでした。「OKAERI1:」から最後まで、全部貼り付けてください。";
+      $("importNote").textContent = "読み込めませんでした。" + parseError;
       return;
     }
     const dates = Object.keys(d.logs).filter(x => hasData(normalizeLog(d.logs[x]))).sort();
