@@ -1,4 +1,4 @@
-const CACHE = "okaeri-v20";
+const CACHE = "okaeri-v21";
 const FILES = ["./", "index.html", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", e => {

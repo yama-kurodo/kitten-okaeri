@@ -636,7 +636,19 @@ function normalizeLog(r) {
 }
 function normalizeAll(obj) { const out = {}; for (const [d, r] of Object.entries(obj)) out[d] = normalizeLog(r); return out; }
 let logs = normalizeAll(load(K_LOGS, {}));
-let plans = load(K_PLAN, null) || DEFAULT_PLANS;
+// 前に仮で置いていたごはんの時刻が残っていたら、実際の時刻に直す
+const OLD_TIMES = { m2: ["13:00"], m3: ["18:30"], m4: ["21:00", "22:00"], m5: ["23:30", "00:00"] };
+function fixPlans(ps) {
+  return ps.map(x => {
+    const meals = {};
+    for (const [k, m] of Object.entries(x.meals || {})) {
+      meals[k] = Object.assign({}, m);
+      if (OLD_TIMES[k] && OLD_TIMES[k].includes(m.time)) meals[k].time = DEFAULT_TIMES[k];
+    }
+    return Object.assign({}, x, { meals });
+  });
+}
+let plans = fixPlans(load(K_PLAN, null) || DEFAULT_PLANS);
 function sortedPlans() { return plans.slice().sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0)); }
 function planFor(date) {
   const ps = sortedPlans();
@@ -1177,7 +1189,9 @@ function exportCode() {
 }
 let parseError = "";
 function parseCode(text) {
-  const raw = String(text || "");
+  let raw = String(text || "");
+  // 貼り付けのときに %22 のような形に変わっていたら戻す
+  if (/%[0-9A-Fa-f]{2}/.test(raw)) { try { raw = decodeURIComponent(raw); } catch (e) {} }
   const len = raw.trim().length;
   const i = raw.toUpperCase().indexOf("OKAERI");
   const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
@@ -1273,7 +1287,7 @@ function buildTransfer() {
     for (const id of d.checks || []) if (!done.has(id) && checks.has(id)) setCheck(id, true);
     if (Array.isArray(d.plans) && d.plans.length) {
       const map = new Map(sortedPlans().map(x => [x.from, x]));
-      for (const x of d.plans) if (x && x.from && x.meals) map.set(x.from, x);
+      for (const x of fixPlans(d.plans.filter(x => x && x.from && x.meals))) map.set(x.from, { from: x.from, meals: Object.assign({}, planFor(x.from) || sortedPlans()[0].meals, x.meals) });
       plans = [...map.values()];
       save(K_PLAN, plans);
       if (db && canWrite) db.doc("settings/plan").set({ plans }).catch(onWriteFail);
@@ -1361,7 +1375,7 @@ async function connect() {
     if (!snap.exists || snap.metadata.hasPendingWrites) return;
     const ps = (snap.data() || {}).plans;
     if (!Array.isArray(ps) || !ps.length) return;
-    plans = ps;
+    plans = fixPlans(ps);
     save(K_PLAN, plans);
     renderToday();
     renderHistory();
