@@ -1563,7 +1563,10 @@ connect();
 
 // ---- 家族の記録：合言葉で鍵をかけた family.json を開いて、この端末の表示に反映する ----
 const K_FAMILY = "kitten-family-pass";
+// 合言葉は全角・半角、カタカナ・ひらがなの違いを気にせず入れられるようにそろえる
+function normPass(s) { return s.normalize("NFKC").trim().replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60)); }
 async function decryptFamily(obj, pass) {
+  pass = normPass(pass);
   const b = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
   const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
   const key = await crypto.subtle.deriveKey({ name: "PBKDF2", salt: b(obj.salt), iterations: obj.iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
