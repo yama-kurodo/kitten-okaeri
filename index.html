@@ -372,8 +372,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <h2>家族に届ける</h2>
       <p class="hint">このスマホで付けた記録を、家族のアプリに届けます。</p>
       <button class="btn" id="sendBtn" type="button">記録をクロに送る（コピー）</button>
-      <p class="hint" id="sendNote" role="status">押したあと、スマホのクロに貼り付けて「反映して」と送ってください。</p>
+      <p class="hint" id="sendNote" role="status">この7日のあいだに付けたり直したりした日の分だけをコピーします。押したあと、スマホのクロに貼り付けて「反映して」と送ってください。</p>
       <textarea id="sendFallback" rows="4" readonly hidden></textarea>
+      <button class="link" id="sendAllBtn" type="button">全部の記録を送る（前の記録をまとめて直したとき）</button>
     </div>
     <div class="card" id="familyCard">
       <h2>家族の記録</h2>
@@ -1131,9 +1132,14 @@ function renderToday() {
   const days = Math.round((parse(t) - parse(OKAERI)) / 86400000) + 1;
   $("since").textContent = days >= 1 ? "うちに来て" + days + "日目" : "";
 }
+// いつその日の記録を直したか（「記録をクロに送る」で、最近直した日だけを送るため）
+const K_EDITED = "kitten-edited";
 function setLog(date, patch) {
   logs[date] = Object.assign({}, logs[date], patch);
   save(K_LOGS, logs);
+  const ed = load(K_EDITED, {});
+  ed[date] = Date.now();
+  save(K_EDITED, ed);
   renderToday();
   renderHistory();
   queueLogWrite(date);
@@ -1884,9 +1890,24 @@ function applyRecorder() {
   $("sendCard").hidden = !on;
 }
 $("recorderBox").addEventListener("change", e => { save(K_RECORDER, e.target.checked); applyRecorder(); if (!e.target.checked && load(K_FAMILY, "")) loadFamily(load(K_FAMILY, ""), false); });
-$("sendBtn").addEventListener("click", () => {
-  const code = exportCode();
-  const ok = () => { $("sendNote").textContent = "コピーしました。スマホのクロに貼り付けて「反映して」と送ってください。"; $("sendFallback").hidden = true; };
+// 送るのは、この7日のあいだに直した日の記録だけ（クロの側で前の記録と合わせる）。予定・量の決まり・チェックは毎回送る
+const SEND_DAYS = 7;
+function sendCode(all) {
+  let pick = logs;
+  if (!all) {
+    const ed = load(K_EDITED, null), since = Date.now() - SEND_DAYS * 86400000;
+    const t = today(), y = prevDay(t);
+    pick = {};
+    for (const [d, r] of Object.entries(logs)) {
+      if (ed ? ed[d] >= since : (d === t || d === y)) pick[d] = r;
+    }
+  }
+  return { n: Object.keys(pick).length, code: "OKAERI2:" + JSON.stringify({ part: !all, logs: pick, checks: [...done], plans, schedule }) };
+}
+function sendCopy(all) {
+  const { n, code } = sendCode(all);
+  const what = all ? "全部の記録（" + n + "日分）" : n ? "最近直した" + n + "日分" : "予定と設定（直した記録はありません）";
+  const ok = () => { $("sendNote").textContent = what + "をコピーしました。スマホのクロに貼り付けて「反映して」と送ってください。"; $("sendFallback").hidden = true; };
   const fallback = () => {
     const ta = $("sendFallback");
     ta.value = code;
@@ -1896,7 +1917,9 @@ $("sendBtn").addEventListener("click", () => {
     $("sendNote").textContent = "自動でコピーできませんでした。下の文字を全部選んでコピーしてください。";
   };
   try { navigator.clipboard.writeText(code).then(ok, fallback); } catch (e) { fallback(); }
-});
+}
+$("sendBtn").addEventListener("click", () => sendCopy(false));
+$("sendAllBtn").addEventListener("click", () => sendCopy(true));
 applyRecorder();
 const savedPass = load(K_FAMILY, "");
 if (savedPass && !load(K_RECORDER, false)) loadFamily(savedPass, false);
