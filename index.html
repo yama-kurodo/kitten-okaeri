@@ -372,9 +372,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
       <h2>家族に届ける</h2>
       <p class="hint">このスマホで付けた記録を、家族のアプリに届けます。</p>
       <button class="btn" id="sendBtn" type="button">記録をクロに送る（コピー）</button>
-      <p class="hint" id="sendNote" role="status">この7日のあいだに付けたり直したりした日の分だけをコピーします。押したあと、スマホのクロに貼り付けて「反映して」と送ってください。</p>
+      <p class="hint" id="sendNote" role="status">前に家族へ届けたあとに付けたり直したりした分だけをコピーします。押したあと、スマホのクロに貼り付けて「反映して」と送ってください。</p>
       <textarea id="sendFallback" rows="4" readonly hidden></textarea>
-      <button class="link" id="sendAllBtn" type="button">全部の記録を送る（前の記録をまとめて直したとき）</button>
     </div>
     <div class="card" id="familyCard">
       <h2>家族の記録</h2>
@@ -744,7 +743,17 @@ const all = SECTIONS.flatMap(([k]) => LISTS[k].items);
 const $ = id => document.getElementById(id);
 
 function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
-function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function save(k, v) {
+  try {
+    localStorage.setItem(k, JSON.stringify(v));
+    // チェック・量の決まり・予定を変えた時刻（「記録をクロに送る」で、変えたときだけ送るため）
+    if (k === "kitten-checks-v1" || k === "kitten-plan-v1" || k === "kitten-sched-v1") {
+      const m = JSON.parse(localStorage.getItem("kitten-edited-settings") || "{}");
+      m[k] = Date.now();
+      localStorage.setItem("kitten-edited-settings", JSON.stringify(m));
+    }
+  } catch (e) {}
+}
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
 function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function parse(s) { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); }
@@ -1890,23 +1899,29 @@ function applyRecorder() {
   $("sendCard").hidden = !on;
 }
 $("recorderBox").addEventListener("change", e => { save(K_RECORDER, e.target.checked); applyRecorder(); if (!e.target.checked && load(K_FAMILY, "")) loadFamily(load(K_FAMILY, ""), false); });
-// 送るのは、この7日のあいだに直した日の記録だけ（クロの側で前の記録と合わせる）。予定・量の決まり・チェックは毎回送る
-const SEND_DAYS = 7;
-function sendCode(all) {
-  let pick = logs;
-  if (!all) {
-    const ed = load(K_EDITED, null), since = Date.now() - SEND_DAYS * 86400000;
-    const t = today(), y = prevDay(t);
-    pick = {};
-    for (const [d, r] of Object.entries(logs)) {
-      if (ed ? ed[d] >= since : (d === t || d === y)) pick[d] = r;
-    }
-  }
-  return { n: Object.keys(pick).length, code: "OKAERI2:" + JSON.stringify({ part: !all, logs: pick, checks: [...done], plans, schedule }) };
+// 送るのは、前回クロが反映したあとに付けたり直したりした分だけ（クロの側で前の記録と合わせる）。
+// 前回の反映の時刻は公開中の family.json の got（その文字をコピーした時刻）で知る。取れないときは最近7日分
+let lastGot = null;
+function fetchGot() {
+  fetch("family.json?t=" + Date.now(), { cache: "no-store" }).then(r => r.ok ? r.json() : null)
+    .then(o => { lastGot = o ? (o.got || 0) : null; }).catch(() => {});
 }
-function sendCopy(all) {
-  const { n, code } = sendCode(all);
-  const what = all ? "全部の記録（" + n + "日分）" : n ? "最近直した" + n + "日分" : "予定と設定（直した記録はありません）";
+function sendCode() {
+  const now = Date.now();
+  const since = lastGot != null ? lastGot : now - 7 * 86400000;
+  const ed = load(K_EDITED, {}), es = load("kitten-edited-settings", {});
+  const pick = {};
+  for (const [d, r] of Object.entries(logs)) if (ed[d] > since) pick[d] = r;
+  const body = { part: true, sentAt: now, logs: pick };
+  if (es[K_CHECKS] > since) body.checks = [...done];
+  if (es[K_PLAN] > since) body.plans = plans;
+  if (es[K_SCHED] > since) body.schedule = schedule;
+  return { n: Object.keys(pick).length, other: ["checks", "plans", "schedule"].filter(k => k in body).length, code: "OKAERI2:" + JSON.stringify(body) };
+}
+function sendCopy() {
+  const { n, other, code } = sendCode();
+  const what = n ? n + "日分の記録" + (other ? "と予定・設定" : "") : other ? "予定・設定" : "";
+  if (!what) { $("sendNote").textContent = "前に送ったあと、新しく付けた記録はありません。"; $("sendFallback").hidden = true; return; }
   const ok = () => { $("sendNote").textContent = what + "をコピーしました。スマホのクロに貼り付けて「反映して」と送ってください。"; $("sendFallback").hidden = true; };
   const fallback = () => {
     const ta = $("sendFallback");
@@ -1918,9 +1933,10 @@ function sendCopy(all) {
   };
   try { navigator.clipboard.writeText(code).then(ok, fallback); } catch (e) { fallback(); }
 }
-$("sendBtn").addEventListener("click", () => sendCopy(false));
-$("sendAllBtn").addEventListener("click", () => sendCopy(true));
+$("sendBtn").addEventListener("click", sendCopy);
 applyRecorder();
+if (load(K_RECORDER, false)) fetchGot();
+document.addEventListener("visibilitychange", () => { if (!document.hidden && load(K_RECORDER, false)) fetchGot(); });
 const savedPass = load(K_FAMILY, "");
 if (savedPass && !load(K_RECORDER, false)) loadFamily(savedPass, false);
 if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) $("install").hidden = true;
